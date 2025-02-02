@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AlarmsService", "AlarmsService\AlarmsService.csproj", "{3AC25653-110F-4003-B424-751DB2294EE3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Arduino", "..\..\Libraries\Arduino\Arduino\Arduino.csproj", "{C209742D-12B9-42D8-A192-FC40D4E45991}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChetchXMPP", "..\..\Libraries\ChetchXMPP\ChetchXMPP\ChetchXMPP.csproj", "{DA38A75C-862D-43C2-A901-D02AF9F007B0}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{3AC25653-110F-4003-B424-751DB2294EE3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3AC25653-110F-4003-B424-751DB2294EE3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3AC25653-110F-4003-B424-751DB2294EE3}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3AC25653-110F-4003-B424-751DB2294EE3}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C209742D-12B9-42D8-A192-FC40D4E45991}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C209742D-12B9-42D8-A192-FC40D4E45991}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C209742D-12B9-42D8-A192-FC40D4E45991}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C209742D-12B9-42D8-A192-FC40D4E45991}.Release|Any CPU.Build.0 = Release|Any CPU
+		{DA38A75C-862D-43C2-A901-D02AF9F007B0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DA38A75C-862D-43C2-A901-D02AF9F007B0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DA38A75C-862D-43C2-A901-D02AF9F007B0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DA38A75C-862D-43C2-A901-D02AF9F007B0}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
