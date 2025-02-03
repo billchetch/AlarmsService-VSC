@@ -12,13 +12,28 @@ namespace Chetch.AlarmsService;
 public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmRaiser
 {
     #region Constants
-    //
+    public const String COMMAND_TEST_BUZZER = "test-buzzer";
+    public const String COMMAND_TEST_PILOT = "test-pilot";
+
+
+    public const String ARDUINO_BOARD_NAME = "alarms-board"; //for identification purposes only
+    public const int BAUD_RATE = 9600;
+
+    public const byte MASTER_SWITCH_ID = 10;
+    public const byte BUZZER_ID = 11;
+
+    public const byte PILOT_ID = 12;
+    
     #endregion
     
     public AlarmManager AlarmManager { get; set; } = new AlarmManager();
 
     #region Fields
     List<String> alarmSources = new List<String>();
+
+    SwitchDevice master = new SwitchDevice(MASTER_SWITCH_ID, "master");
+    SwitchDevice buzzer = new SwitchDevice(BUZZER_ID, "buzzer");
+    SwitchDevice pilot = new SwitchDevice(BUZZER_ID, "pilot");
     #endregion
 
     public AlarmsService(ILogger<AlarmsService> Logger) : base(Logger)
@@ -55,25 +70,23 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     #region Service Lifecycle
     protected override Task Execute(CancellationToken stoppingToken)
     {
-
-        ArduinoBoard board = new ArduinoBoard("alarms", 0x7523, 9600); //, Frame.FrameSchema.SMALL_NO_CHECKSUM);
-        board.Ready += (sender, ready) => {
-            Console.WriteLine("Board is ready: {0}", ready);
-           
-        };
-
-        /*var sd = new SwitchDevice(11, "gland1");
-        sd.Switched += (sender, pinState) => {
-            Console.WriteLine("Switch {0} has pin state {1}", sd.Name, pinState);
-        };
-        board.AddDevice(sd);*/
-
-        //AddBoard(board);
-
         //little bit convuluted this but it will call the register alrams method which will create alarms from DB
         //this is to make consistent the useage of AlarmManager which is designed for easy use in other services
         //This service is an exceptional case
         AlarmManager.AddRaiser(this);
+
+        
+        //Create an arduino board and add devices
+        ArduinoBoard board = new ArduinoBoard(ARDUINO_BOARD_NAME, 0x7523, BAUD_RATE); //, Frame.FrameSchema.SMALL_NO_CHECKSUM);
+        board.Ready += (sender, ready) => {
+            Console.WriteLine("Board is ready: {0}", ready);
+           
+        };
+        board.AddDevice(master);
+        board.AddDevice(buzzer);
+        board.AddDevice(pilot);
+
+        AddBoard(board);
 
         return base.Execute(stoppingToken);
     }
@@ -97,6 +110,22 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             case AlarmManager.COMMAND_LIST_ALARMS:
                 var alarmsList = AlarmManager.Alarms.Select(x => String.Format("{0} - {1} ({2})",x.ID, x.Name, x.State)).ToList();
                 response.AddValue(AlarmManager.MESSAGE_FIELD_ALARMS_LIST, alarmsList);
+                return true;
+
+            case AlarmManager.COMMAND_TEST_ALARM:
+                if(arguments.Count < 1)
+                {
+                    throw new ArgumentException("Please specify an alarm to test");
+                }
+                var alarmID = arguments[0];
+                return true;
+
+            case COMMAND_TEST_BUZZER:
+                buzzer.TurnOn();
+
+                return true;
+
+            case COMMAND_TEST_PILOT:
                 return true;
 
             default:
