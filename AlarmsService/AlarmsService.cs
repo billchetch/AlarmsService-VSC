@@ -26,14 +26,34 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     
     #endregion
     
+    #region Classes and Enums
+    public enum Test
+    {
+        NOT_TESTING,
+        ALARM,
+        BUZZER,
+        PILOT
+    }
+    #endregion
+
+    #region Properties
     public AlarmManager AlarmManager { get; set; } = new AlarmManager();
+
+    public bool IsTesting => currentTest != Test.NOT_TESTING;
+    #endregion
 
     #region Fields
     List<String> alarmSources = new List<String>();
 
+    //If this master is off then any alarm hardwired to the arduino board will go directly to the buzzer rather than via the board
+    //if the master is on then it will be disconnected from the buzzer. Without this the alarm could not be silenced as the silecning
+    //is done by software
     SwitchDevice master = new SwitchDevice(MASTER_SWITCH_ID, "master");
     SwitchDevice buzzer = new SwitchDevice(BUZZER_ID, "buzzer");
-    SwitchDevice pilot = new SwitchDevice(BUZZER_ID, "pilot");
+    SwitchDevice pilot = new SwitchDevice(PILOT_ID, "pilot");
+
+    Test currentTest = Test.NOT_TESTING;
+    System.Timers.Timer testTimer = new System.Timers.Timer();
     #endregion
 
     public AlarmsService(ILogger<AlarmsService> Logger) : base(Logger)
@@ -74,13 +94,18 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         //this is to make consistent the useage of AlarmManager which is designed for easy use in other services
         //This service is an exceptional case
         AlarmManager.AddRaiser(this);
-
+        AlarmManager.AlarmChanged += (x, y) => {
+            
+        };
         
         //Create an arduino board and add devices
         ArduinoBoard board = new ArduinoBoard(ARDUINO_BOARD_NAME, 0x7523, BAUD_RATE); //, Frame.FrameSchema.SMALL_NO_CHECKSUM);
         board.Ready += (sender, ready) => {
             Console.WriteLine("Board is ready: {0}", ready);
-           
+            if(!ready)
+            {
+                master.TurnOff();
+            }
         };
         board.AddDevice(master);
         board.AddDevice(buzzer);
@@ -88,10 +113,39 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
 
         AddBoard(board);
 
+        //configure the test timer stuff
+        testTimer.AutoReset = false;
+        testTimer.Elapsed += (sender, eargs) => {
+            endTest();
+        };
+
+
         return base.Execute(stoppingToken);
     }
-    #endregion 
-    
+
+    public override Task StopAsync(CancellationToken cancellationToken)
+    {
+        if(IsTesting)
+        {
+            endTest();
+        }
+
+        //TODO: do this properly ... placed here to remember we need to ensure that the master is turned off for sure
+        /*
+        try
+        {
+            master.TurnOff();
+        }
+        catch (Exception e)
+        {
+            Logger.LogError(e, e.Message);
+        }*/
+        
+
+        return base.StopAsync(cancellationToken);
+    }
+    #endregion
+
 
     #region Command handling
 
@@ -99,6 +153,8 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     {
         AddCommand(AlarmManager.COMMAND_LIST_ALARMS, "List currently active alarms and their state");
         AddCommand(AlarmManager.COMMAND_TEST_ALARM, "Test <alarm>");
+        AddCommand(COMMAND_TEST_BUZZER, "Test the buzzer");
+        AddCommand(COMMAND_TEST_PILOT, "Test the pilot light");
 
         base.AddCommands();
     }
@@ -117,12 +173,13 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 {
                     throw new ArgumentException("Please specify an alarm to test");
                 }
-                var alarmID = arguments[0];
+                var alarmID = arguments[0].ToString();
+                var alarmState = AlarmManager.AlarmState.MODERATE;
+                AlarmManager.RunTest(alarmID, alarmState, "Testing some shiii", 3000);
                 return true;
 
             case COMMAND_TEST_BUZZER:
-                buzzer.TurnOn();
-
+                runTest(Test.BUZZER, 3000);
                 return true;
 
             case COMMAND_TEST_PILOT:
@@ -131,6 +188,49 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             default:
                 return base.HandleCommandReceived(command, arguments, response);
         }
+    }
+    #endregion
+
+    #region Testing
+    void runTest(Test testToRun, int runFor)
+    {
+        if(testToRun == Test.NOT_TESTING)
+        {
+            throw new ArgumentException("Cannot run the test: NOT TESTING");
+        }
+
+        if(IsTesting)
+        {
+            throw new Exception(String.Format("Cannot run test {0} as test {1} is already running", testToRun, currentTest));
+        }
+
+        switch(testToRun){
+            case Test.BUZZER:
+                buzzer.TurnOn();
+                testTimer.Interval = runFor;
+                break;
+        }
+
+        currentTest = testToRun;
+        testTimer.Start();
+    }
+
+    void endTest()
+    {
+        if(!IsTesting)return; //fail quietly
+
+        switch(currentTest)
+        {
+            case Test.BUZZER:
+                buzzer.TurnOff();
+                break;
+
+            case Test.PILOT:
+                pilot.TurnOff();
+                break;
+        }
+
+        currentTest = Test.NOT_TESTING;
     }
     #endregion
 }
