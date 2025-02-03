@@ -13,7 +13,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../../../Libraries/Alarms/Alarms/Alarms.csproj" />
     <ProjectReference Include="../../../Libraries/Arduino/Arduino/Arduino.csproj" />
     <ProjectReference Include="../../../Libraries/ChetchXMPP/ChetchXMPP/ChetchXMPP.csproj" />
+    <ProjectReference Include="../../../Libraries/Messaging/Messaging/Messaging.csproj" />
   </ItemGroup>
 </Project>
