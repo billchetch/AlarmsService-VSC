@@ -94,8 +94,8 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         //this is to make consistent the useage of AlarmManager which is designed for easy use in other services
         //This service is an exceptional case
         AlarmManager.AddRaiser(this);
-        AlarmManager.AlarmChanged += (x, y) => {
-            
+        AlarmManager.AlarmChanged += (mgr, alarm) => {
+            Console.WriteLine("Alarm {0} has changed to state {1}", alarm.ID, alarm.State);
         };
         
         //Create an arduino board and add devices
@@ -192,7 +192,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     #endregion
 
     #region Testing
-    void runTest(Test testToRun, int runFor)
+    void runTest(Test testToRun, int runFor, String alarmID = null, AlarmManager.AlarmState alarmState = AlarmManager.AlarmState.CRITICAL)
     {
         if(testToRun == Test.NOT_TESTING)
         {
@@ -205,13 +205,22 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         }
 
         switch(testToRun){
+            case Test.ALARM:
+                AlarmManager.RunTest(alarmID, alarmState, "Testing cuz", runFor);
+                break;
+
             case Test.BUZZER:
                 buzzer.TurnOn();
-                testTimer.Interval = runFor;
                 break;
+
+            case Test.PILOT:
+                pilot.TurnOn();
+                break;
+
         }
 
         currentTest = testToRun;
+        testTimer.Interval = runFor;
         testTimer.Start();
     }
 
@@ -221,6 +230,10 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
 
         switch(currentTest)
         {
+            case Test.ALARM:
+                AlarmManager.EndTest();
+                break;
+
             case Test.BUZZER:
                 buzzer.TurnOff();
                 break;
