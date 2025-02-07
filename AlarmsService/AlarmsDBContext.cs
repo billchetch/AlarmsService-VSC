@@ -25,7 +25,7 @@ public class AlarmsDBContext : ChetchDbContext
         public String Name { get; set; } = String.Empty;
 
         [Column("alarm_source")]
-        public String? Source { get; set; } = String.Empty;
+        public String Source { get; set; } = String.Empty;
 
         [Column("active")]
         public bool Active { get; set; } = false;

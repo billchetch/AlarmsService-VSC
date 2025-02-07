@@ -6,6 +6,7 @@ using Chetch.Messaging;
 using XmppDotNet.Xmpp.XHtmlIM;
 using XmppDotNet.Xmpp.Muc;
 using System.Reflection.Metadata.Ecma335;
+using XmppDotNet.Xmpp.Jingle;
 
 namespace Chetch.AlarmsService;
 
@@ -14,15 +15,27 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     #region Constants
     public const String COMMAND_TEST_BUZZER = "test-buzzer";
     public const String COMMAND_TEST_PILOT = "test-pilot";
+    public const String COMMAND_TEST_MASTER = "test-master";
+    public const String COMMAND_SILENCE_BUZZER = "silence";
+    public const String COMMAND_UNSILENCE_BUZZER = "unsilence";
+
 
 
     public const String ARDUINO_BOARD_NAME = "alarms-board"; //for identification purposes only
     public const int BAUD_RATE = 9600;
 
+    public const int DEFAULT_TEST_DURATION = 3000;
+
     public const byte MASTER_SWITCH_ID = 10;
     public const byte BUZZER_ID = 11;
-
     public const byte PILOT_ID = 12;
+    public const byte GENSET_ALARM_ID = 13;
+    public const String GENSET_ALARM_NAME = "gs";
+    public const byte INVERTER_ALARM_ID = 14;
+    public const String INVERTER_ALARM_NAME = "iv";
+    public const byte HIGHWATER_ALARM_ID = 15;
+    public const String HIGHWATER_ALARM_NAME = "hw";
+
     
     #endregion
     
@@ -32,7 +45,8 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         NOT_TESTING,
         ALARM,
         BUZZER,
-        PILOT
+        PILOT,
+        MASTER
     }
     #endregion
 
@@ -44,7 +58,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
 
     #region Fields
     List<String> alarmSources = new List<String>();
-
+    
     //If this master is off then any alarm hardwired to the arduino board will go directly to the buzzer rather than via the board
     //if the master is on then it will be disconnected from the buzzer. Without this the alarm could not be silenced as the silecning
     //is done by software
@@ -52,6 +66,12 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     SwitchDevice buzzer = new SwitchDevice(BUZZER_ID, "buzzer");
     SwitchDevice pilot = new SwitchDevice(PILOT_ID, "pilot");
 
+    SwitchDevice gensetAlarm = new SwitchDevice(GENSET_ALARM_ID, GENSET_ALARM_NAME);
+    SwitchDevice inverterAlarm = new SwitchDevice(INVERTER_ALARM_ID, INVERTER_ALARM_NAME);
+    SwitchDevice highwaterAlarm = new SwitchDevice(HIGHWATER_ALARM_ID, HIGHWATER_ALARM_NAME);
+
+    List<ArduinoDevice> localAlarms = new List<ArduinoDevice>();
+   
     Test currentTest = Test.NOT_TESTING;
     System.Timers.Timer testTimer = new System.Timers.Timer();
     #endregion
@@ -59,12 +79,46 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     public AlarmsService(ILogger<AlarmsService> Logger) : base(Logger)
     {
         ChetchDbContext.Config = Config;
+
+        //add local alarms to an array for convenience
+        localAlarms.Add(gensetAlarm);
+        localAlarms.Add(inverterAlarm);
+        localAlarms.Add(highwaterAlarm);
+
+        foreach(var la in localAlarms)
+        {
+            ((SwitchDevice)la).Switched += (sender, pinState) => {
+                if(sender == null)return;
+                    
+                if(pinState)
+                {
+                    AlarmManager.Raise(((ArduinoDevice)sender).Name,
+                            AlarmManager.AlarmState.CRITICAL,
+                            "Local alarm raised"
+                        );
+                }
+                else
+                {
+                    AlarmManager.Lower(((ArduinoDevice)sender).Name,
+                            "Local alarm lowered"
+                        );
+                }
+            };
+        }
     }
 
-    
     public void RegisterAlarms()
     {
-        //Console.WriteLine("Registering alarms");
+        //Register local alarms
+        foreach(var la in localAlarms)
+        {
+            AlarmManager.RegisterAlarm(this, la.Name);
+        }
+        
+         //connect these alarms before we add the rest as they should remain disconnected
+        AlarmManager.Connect(this);
+
+        //Register the remote alarms
         try{
             using(var context = new AlarmsDBContext())
             {
@@ -73,12 +127,13 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 {
                     //Console.WriteLine("Registering alarm: {0} - {1} source: {2}", alarm.UID, alarm.Name, alarm.Source);
                     AlarmManager.RegisterAlarm(this, alarm.UID, alarm.Name);
-                    if(alarm.Source != null && !alarmSources.Contains(alarm.Source))
+
+                    //record the alarm source, this is used for requesting alarm info from remote alarm sources
+                    if(!alarmSources.Contains(alarm.Source))
                     {
                         alarmSources.Add(alarm.Source);
                     }
                 }
-                
             }
         }
         catch (Exception e)
@@ -96,6 +151,33 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         AlarmManager.AddRaiser(this);
         AlarmManager.AlarmChanged += (mgr, alarm) => {
             Console.WriteLine("Alarm {0} has changed to state {1}", alarm.ID, alarm.State);
+            
+            //if the alarm has been raised and it's for real then end any current tests
+            if(IsTesting && alarm.IsRaised && !alarm.IsTesting)
+            {
+                endTest();
+            }
+
+            //if any alarm is raised then the master switch is turned on
+            if(alarm.IsRaised)
+            {
+                master.TurnOn();
+                pilot.TurnOn();
+
+                //here we determine teh conditions under which we turn the buzzer on...
+                if(alarm.State == AlarmManager.AlarmState.CRITICAL)
+                {
+                    buzzer.TurnOn();
+                }
+            }
+            
+            //if all alarms are now off then turn everything off
+            if(!AlarmManager.IsAlarmRaised)
+            {
+                master.TurnOff();
+                pilot.TurnOff();
+                buzzer.TurnOff();
+            }
         };
         
         //Create an arduino board and add devices
@@ -110,10 +192,11 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         board.AddDevice(master);
         board.AddDevice(buzzer);
         board.AddDevice(pilot);
-
+        board.AddDevices(localAlarms);
+        
         AddBoard(board);
 
-        //configure the test timer stuff
+        //configure the test timer stuff ... no auto reset as it starts on start test and fires on end test
         testTimer.AutoReset = false;
         testTimer.Elapsed += (sender, eargs) => {
             endTest();
@@ -130,7 +213,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             endTest();
         }
 
-        //TODO: do this properly ... placed here to remember we need to ensure that the master is turned off for sure
+        //TODO: do this properly ... placed here to remember we need to ensure that the master is turned off
         /*
         try
         {
@@ -155,6 +238,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         AddCommand(AlarmManager.COMMAND_TEST_ALARM, "Test <alarm>");
         AddCommand(COMMAND_TEST_BUZZER, "Test the buzzer");
         AddCommand(COMMAND_TEST_PILOT, "Test the pilot light");
+        AddCommand(COMMAND_TEST_MASTER, "Test the master switch");
 
         base.AddCommands();
     }
@@ -174,15 +258,35 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                     throw new ArgumentException("Please specify an alarm to test");
                 }
                 var alarmID = arguments[0].ToString();
-                var alarmState = AlarmManager.AlarmState.MODERATE;
-                AlarmManager.RunTest(alarmID, alarmState, "Testing some shiii", 3000);
+                var alarmState = AlarmManager.AlarmState.CRITICAL;
+                int duration = DEFAULT_TEST_DURATION;
+                if(arguments.Count > 1)
+                {
+                    alarmState = (AlarmManager.AlarmState)Convert.ToInt16(arguments[1].ToString());
+                }
+                if(arguments.Count > 2)
+                {
+                    duration = Convert.ToInt16(arguments[2].ToString());
+                }
+                AlarmManager.RunTest(alarmID, alarmState, "Running an alarm test", duration);
                 return true;
 
             case COMMAND_TEST_BUZZER:
-                runTest(Test.BUZZER, 3000);
+                runTest(Test.BUZZER, DEFAULT_TEST_DURATION);
                 return true;
 
             case COMMAND_TEST_PILOT:
+                runTest(Test.PILOT, DEFAULT_TEST_DURATION);
+                return true;
+
+            case COMMAND_TEST_MASTER:
+                runTest(Test.MASTER, DEFAULT_TEST_DURATION);  
+                return true;
+
+            case COMMAND_SILENCE_BUZZER:
+                return true;
+
+            case COMMAND_UNSILENCE_BUZZER:
                 return true;
 
             default:
@@ -217,6 +321,10 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 pilot.TurnOn();
                 break;
 
+            case Test.MASTER:
+                master.TurnOn();
+                break;
+
         }
 
         currentTest = testToRun;
@@ -240,6 +348,10 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
 
             case Test.PILOT:
                 pilot.TurnOff();
+                break;
+
+            case Test.MASTER:
+                master.TurnOff();
                 break;
         }
 
