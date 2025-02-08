@@ -57,8 +57,6 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     #endregion
 
     #region Fields
-    List<String> alarmSources = new List<String>();
-    
     //If this master is off then any alarm hardwired to the arduino board will go directly to the buzzer rather than via the board
     //if the master is on then it will be disconnected from the buzzer. Without this the alarm could not be silenced as the silecning
     //is done by software
@@ -66,12 +64,12 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     SwitchDevice buzzer = new SwitchDevice(BUZZER_ID, "buzzer");
     SwitchDevice pilot = new SwitchDevice(PILOT_ID, "pilot");
 
-    SwitchDevice gensetAlarm = new SwitchDevice(GENSET_ALARM_ID, GENSET_ALARM_NAME);
-    SwitchDevice inverterAlarm = new SwitchDevice(INVERTER_ALARM_ID, INVERTER_ALARM_NAME);
-    SwitchDevice highwaterAlarm = new SwitchDevice(HIGHWATER_ALARM_ID, HIGHWATER_ALARM_NAME);
+    SwitchGroup localAlarms = new SwitchGroup();
+    List<AlarmsDBContext.Alarm> remoteAlarms = new List<AlarmsDBContext.Alarm>();
+    Dictionary<String, AlarmsDBContext.Alarm> activeAlarms = new Dictionary<String, AlarmsDBContext.Alarm>();
+    List<String> remoteSources = new List<String>();
+    
 
-    List<ArduinoDevice> localAlarms = new List<ArduinoDevice>();
-   
     Test currentTest = Test.NOT_TESTING;
     System.Timers.Timer testTimer = new System.Timers.Timer();
     #endregion
@@ -81,29 +79,32 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         ChetchDbContext.Config = Config;
 
         //add local alarms to an array for convenience
-        localAlarms.Add(gensetAlarm);
-        localAlarms.Add(inverterAlarm);
-        localAlarms.Add(highwaterAlarm);
-
-        foreach(var la in localAlarms)
-        {
-            ((SwitchDevice)la).Switched += (sender, pinState) => {
-                if(sender == null)return;
+        localAlarms.Add(new SwitchDevice(GENSET_ALARM_ID, GENSET_ALARM_NAME));
+        localAlarms.Add(new SwitchDevice(INVERTER_ALARM_ID, INVERTER_ALARM_NAME));
+        localAlarms.Add(new SwitchDevice(HIGHWATER_ALARM_ID, HIGHWATER_ALARM_NAME));
+        localAlarms.Switched += (sender, eargs) => {
+                if(eargs.Switch == null)return;
                     
-                if(pinState)
+                if(eargs.PinState)
                 {
-                    AlarmManager.Raise(((ArduinoDevice)sender).Name,
+                    AlarmManager.Raise(eargs.Switch.Name,
                             AlarmManager.AlarmState.CRITICAL,
                             "Local alarm raised"
                         );
                 }
                 else
                 {
-                    AlarmManager.Lower(((ArduinoDevice)sender).Name,
+                    AlarmManager.Lower(eargs.Switch.Name,
                             "Local alarm lowered"
                         );
                 }
             };
+    
+        using(var context = new AlarmsDBContext())
+        {
+            remoteAlarms = context.Alarms.Where(x => x.Active && x.Source != "local").ToList();
+            remoteSources = context.Alarms.GroupBy(x => x.Source).Select(x => x.First().Source).Where(x => x != "local").ToList();
+            activeAlarms = context.Alarms.Where(x => x.Active).ToDictionary(x => x.UID, x => x);
         }
     }
 
@@ -118,27 +119,11 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
          //connect these alarms before we add the rest as they should remain disconnected
         AlarmManager.Connect(this);
 
-        //Register the remote alarms
-        try{
-            using(var context = new AlarmsDBContext())
-            {
-                var activeAlarms = context.Alarms.Where(x => x.Active);
-                foreach(var alarm in activeAlarms)
-                {
-                    //Console.WriteLine("Registering alarm: {0} - {1} source: {2}", alarm.UID, alarm.Name, alarm.Source);
-                    AlarmManager.RegisterAlarm(this, alarm.UID, alarm.Name);
-
-                    //record the alarm source, this is used for requesting alarm info from remote alarm sources
-                    if(!alarmSources.Contains(alarm.Source))
-                    {
-                        alarmSources.Add(alarm.Source);
-                    }
-                }
-            }
-        }
-        catch (Exception e)
+        //register remote alarms (don't connect as this is done via a connection with remote source)
+        //NOTE: we use the UID property of the alarm here
+        foreach(var alarm in remoteAlarms)
         {
-            Logger.LogError(e, e.Message);
+            AlarmManager.RegisterAlarm(this, alarm.UID, alarm.Name);
         }
     }
 
@@ -177,6 +162,40 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 master.TurnOff();
                 pilot.TurnOff();
                 buzzer.TurnOff();
+            }
+
+            //now record stuff in the db if this isn't a test
+            if(!alarm.IsTesting)
+            {
+                try
+                {
+                    using(var context = new AlarmsDBContext())
+                    {
+                        var dbAlarm = activeAlarms[alarm.ID];
+                        if(alarm.IsRaised)
+                        {
+                            dbAlarm.LastRaised = DateTime.Now;
+                            dbAlarm.LastLowered = null;
+                        }
+                        else
+                        {
+                            dbAlarm.LastLowered = DateTime.Now;
+                        }
+                        context.Update(dbAlarm);
+
+                        var entry = new AlarmsDBContext.LogEntry();
+                        entry.AlarmID = dbAlarm.ID;
+                        entry.AlarmState = alarm.State; //.ToString();
+                        entry.AlarmMessage = alarm.Message;
+                        context.Add(entry);
+
+                        context.SaveChanges();
+                    }
+                }
+                catch (Exception e)
+                {
+                    Logger.LogError(e, e.Message);
+                }    
             }
         };
         
