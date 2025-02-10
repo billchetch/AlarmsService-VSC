@@ -72,12 +72,13 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     Dictionary<String, AlarmsDBContext.Alarm> activeAlarms = new Dictionary<String, AlarmsDBContext.Alarm>();
     List<String> remoteSources = new List<String>();
     
-
     Test currentTest = Test.NOT_TESTING;
     System.Timers.Timer testTimer = new System.Timers.Timer();
     #endregion
 
+    #region Constructors
     public AlarmsService(ILogger<AlarmsService> Logger) : base(Logger)
+    #endregion
     {
         ChetchDbContext.Config = Config;
 
@@ -116,6 +117,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         controlSwitches.Add(master);
     }
 
+    #region Alarm Registtration
     public void RegisterAlarms()
     {
         //Register local alarms
@@ -134,6 +136,8 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             AlarmManager.RegisterAlarm(this, alarm.UID, alarm.Name);
         }
     }
+
+    #endregion
 
     #region Service Lifecycle
     protected override Task Execute(CancellationToken stoppingToken)
@@ -205,6 +209,18 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                     Logger.LogError(e, e.Message);
                 }    
             }
+
+            //Finally we send this out to any subscribers on the network
+            try
+            {
+                var alertMsg = AlarmManager.CreateAlertMessage(alarm);
+                Broadcast(alertMsg);
+            }
+            catch (Exception e)
+            {
+                Logger.LogError(e, e.Message);
+            }
+
         };
         
         //Create an arduino board and add devices
@@ -247,7 +263,6 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         return base.StopAsync(cancellationToken);
     }
     #endregion
-
 
     #region Command handling
 
@@ -356,8 +371,18 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         }
 
         currentTest = testToRun;
-        testTimer.Interval = runFor;
-        testTimer.Start();
+        try
+        {
+            var msg = new Message(MessageType.NOTIFICATION);
+            msg.AddValue("CurrentTest", currentTest);
+            msg.AddValue("Testing", IsTesting);
+            Broadcast(msg);
+        }
+        finally
+        {
+            testTimer.Interval = runFor;
+            testTimer.Start();
+        }
     }
 
     void endTest()
@@ -383,7 +408,17 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 break;
         }
 
-        currentTest = Test.NOT_TESTING;
+        try
+        {
+            var msg = new Message(MessageType.NOTIFICATION);
+            msg.AddValue("CurrentTest", currentTest);
+            msg.AddValue("Testing", IsTesting);
+            Broadcast(msg);
+        } 
+        finally 
+        {
+            currentTest = Test.NOT_TESTING;
+        }
     }
     #endregion
 }
