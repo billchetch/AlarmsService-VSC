@@ -1,5 +1,6 @@
 using Chetch.Arduino;
 using Chetch.Arduino.Devices;
+using Chetch.Arduino.Devices.Buzzers;
 using Chetch.Alarms;
 using Chetch.Database;
 using Chetch.Messaging;
@@ -7,6 +8,7 @@ using XmppDotNet.Xmpp.XHtmlIM;
 using XmppDotNet.Xmpp.Muc;
 using System.Reflection.Metadata.Ecma335;
 using XmppDotNet.Xmpp.Jingle;
+using System.Diagnostics;
 
 namespace Chetch.AlarmsService;
 
@@ -61,10 +63,11 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     //if the master is on then it will be disconnected from the buzzer. Without this the alarm could not be silenced as the silecning
     //is done by software
     SwitchDevice master = new SwitchDevice(MASTER_SWITCH_ID, "master");
-    SwitchDevice buzzer = new SwitchDevice(BUZZER_ID, "buzzer");
+    Buzzer buzzer = new Buzzer(BUZZER_ID, "buzzer");
     SwitchDevice pilot = new SwitchDevice(PILOT_ID, "pilot");
 
     SwitchGroup localAlarms = new SwitchGroup();
+    SwitchGroup controlSwitches = new SwitchGroup();
     List<AlarmsDBContext.Alarm> remoteAlarms = new List<AlarmsDBContext.Alarm>();
     Dictionary<String, AlarmsDBContext.Alarm> activeAlarms = new Dictionary<String, AlarmsDBContext.Alarm>();
     List<String> remoteSources = new List<String>();
@@ -106,6 +109,11 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             remoteSources = context.Alarms.GroupBy(x => x.Source).Select(x => x.First().Source).Where(x => x != "local").ToList();
             activeAlarms = context.Alarms.Where(x => x.Active).ToDictionary(x => x.UID, x => x);
         }
+
+        //add indicator and control stuff
+        controlSwitches.Add(pilot);
+        controlSwitches.Add(buzzer);
+        controlSwitches.Add(master);
     }
 
     public void RegisterAlarms()
@@ -202,15 +210,9 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         //Create an arduino board and add devices
         ArduinoBoard board = new ArduinoBoard(ARDUINO_BOARD_NAME, 0x7523, BAUD_RATE); //, Frame.FrameSchema.SMALL_NO_CHECKSUM);
         board.Ready += (sender, ready) => {
-            Console.WriteLine("Board is ready: {0}", ready);
-            if(!ready)
-            {
-                master.TurnOff();
-            }
+            //Board ready (or not stuff here) 
         };
-        board.AddDevice(master);
-        board.AddDevice(buzzer);
-        board.AddDevice(pilot);
+        board.AddDevices(controlSwitches);
         board.AddDevices(localAlarms);
         
         AddBoard(board);
@@ -232,16 +234,14 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             endTest();
         }
 
-        //TODO: do this properly ... placed here to remember we need to ensure that the master is turned off
-        /*
         try
         {
-            master.TurnOff();
+            controlSwitches.TurnOff();
         }
         catch (Exception e)
         {
             Logger.LogError(e, e.Message);
-        }*/
+        }
         
 
         return base.StopAsync(cancellationToken);
@@ -258,6 +258,8 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         AddCommand(COMMAND_TEST_BUZZER, "Test the buzzer");
         AddCommand(COMMAND_TEST_PILOT, "Test the pilot light");
         AddCommand(COMMAND_TEST_MASTER, "Test the master switch");
+        AddCommand(COMMAND_SILENCE_BUZZER, "Silence buzzer for <duration> seconds");
+        AddCommand(COMMAND_UNSILENCE_BUZZER, "Unsilence the buzzer");
 
         base.AddCommands();
     }
@@ -278,16 +280,16 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 }
                 var alarmID = arguments[0].ToString();
                 var alarmState = AlarmManager.AlarmState.CRITICAL;
-                int duration = DEFAULT_TEST_DURATION;
+                int testDuration = DEFAULT_TEST_DURATION;
                 if(arguments.Count > 1)
                 {
                     alarmState = (AlarmManager.AlarmState)Convert.ToInt16(arguments[1].ToString());
                 }
                 if(arguments.Count > 2)
                 {
-                    duration = Convert.ToInt16(arguments[2].ToString());
+                    testDuration = Convert.ToInt16(arguments[2].ToString());
                 }
-                AlarmManager.RunTest(alarmID, alarmState, "Running an alarm test", duration);
+                AlarmManager.RunTest(alarmID, alarmState, "Running an alarm test", testDuration);
                 return true;
 
             case COMMAND_TEST_BUZZER:
@@ -303,9 +305,16 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 return true;
 
             case COMMAND_SILENCE_BUZZER:
+                if(arguments.Count < 1)
+                {
+                    throw new ArgumentException("Please specify a silence duration");
+                }
+                int silenceDuration = Convert.ToInt16(arguments[0].ToString());
+                buzzer.Silence(silenceDuration);
                 return true;
 
             case COMMAND_UNSILENCE_BUZZER:
+                buzzer.Unsilence();
                 return true;
 
             default:
