@@ -23,7 +23,7 @@ public class AlarmsDBContext : ChetchDbContext
         public long ID { get; set; }
 
         [Column("alarm_id")]
-        public String UID { get; set; } = String.Empty;
+        public String SID { get; set; } = String.Empty;
 
         [Column("alarm_name")]
         public String Name { get; set; } = String.Empty;

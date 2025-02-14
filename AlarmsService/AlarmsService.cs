@@ -9,6 +9,8 @@ using XmppDotNet.Xmpp.Muc;
 using System.Reflection.Metadata.Ecma335;
 using XmppDotNet.Xmpp.Jingle;
 using System.Diagnostics;
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 
 namespace Chetch.AlarmsService;
 
@@ -83,22 +85,22 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         ChetchDbContext.Config = Config;
 
         //add local alarms to an array for convenience
-        localAlarms.Add(new SwitchDevice(GENSET_ALARM_ID, GENSET_ALARM_NAME));
-        localAlarms.Add(new SwitchDevice(INVERTER_ALARM_ID, INVERTER_ALARM_NAME));
-        localAlarms.Add(new SwitchDevice(HIGHWATER_ALARM_ID, HIGHWATER_ALARM_NAME));
+        localAlarms.Add(new SwitchDevice(GENSET_ALARM_ID, GENSET_ALARM_NAME, "Gensets"));
+        localAlarms.Add(new SwitchDevice(INVERTER_ALARM_ID, INVERTER_ALARM_NAME, "Inverter"));
+        localAlarms.Add(new SwitchDevice(HIGHWATER_ALARM_ID, HIGHWATER_ALARM_NAME, "High Water"));
         localAlarms.Switched += (sender, eargs) => {
                 if(eargs.Switch == null)return;
                     
                 if(eargs.PinState)
                 {
-                    AlarmManager.Raise(eargs.Switch.Name,
+                    AlarmManager.Raise(eargs.Switch.SID,
                             AlarmManager.AlarmState.CRITICAL,
                             "Local alarm raised"
                         );
                 }
                 else
                 {
-                    AlarmManager.Lower(eargs.Switch.Name,
+                    AlarmManager.Lower(eargs.Switch.SID,
                             "Local alarm lowered"
                         );
                 }
@@ -108,7 +110,9 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         {
             remoteAlarms = context.Alarms.Where(x => x.Active && x.Source != "local").ToList();
             remoteSources = context.Alarms.GroupBy(x => x.Source).Select(x => x.First().Source).Where(x => x != "local").ToList();
-            activeAlarms = context.Alarms.Where(x => x.Active).ToDictionary(x => x.UID, x => x);
+            
+            //keep a record of this from the db for convenience
+            activeAlarms = context.Alarms.Where(x => x.Active).ToDictionary(x => x.SID, x => x);
         }
 
         //add indicator and control stuff
@@ -123,18 +127,30 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         //Register local alarms
         foreach(var la in localAlarms)
         {
-            AlarmManager.RegisterAlarm(this, la.Name);
+            var alm = AlarmManager.RegisterAlarm(this, la.SID, la.Name);
+            if(activeAlarms.ContainsKey(la.SID))
+            {
+                //alm.LastRaised = activeAlarms[la.SID].LastRaised;
+                //alm.LastLowered = activeAlarms[la.SID].LastLowered;
+            }
         }
         
          //connect these alarms before we add the rest as they should remain disconnected
-        AlarmManager.Connect(this);
+        //AlarmManager.Connect(this);
 
         //register remote alarms (don't connect as this is done via a connection with remote source)
-        //NOTE: we use the UID property of the alarm here
-        foreach(var alarm in remoteAlarms)
+        //NOTE: we use the SID property of the alarm here
+        /*foreach(var alarm in remoteAlarms)
         {
-            AlarmManager.RegisterAlarm(this, alarm.UID, alarm.Name);
-        }
+            var alm = AlarmManager.RegisterAlarm(this, alarm.SID, alarm.Name);
+            alm.LastLowered = alarm.LastLowered; //from db
+            alm.LastRaised = alarm.LastRaised; //from db
+        }*/
+
+        var msg = new Message(MessageType.INFO);
+        AlarmManager.AddAlarmsListToMessage(msg);
+        var s = msg.Serialize();
+        Console.WriteLine(s);
     }
 
     #endregion
@@ -284,8 +300,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         switch (command.Command)
         {
             case AlarmManager.COMMAND_LIST_ALARMS:
-                var alarmsList = AlarmManager.Alarms.Select(x => String.Format("{0} - {1} ({2})",x.ID, x.Name, x.State)).ToList();
-                response.AddValue(AlarmManager.MESSAGE_FIELD_ALARMS_LIST, alarmsList);
+                AlarmManager.AddAlarmsListToMessage(response);
                 return true;
 
             case AlarmManager.COMMAND_TEST_ALARM:
