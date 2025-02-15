@@ -40,10 +40,27 @@ public class AlarmsDBContext : ChetchDbContext
         [Column("last_lowered")]
         public DateTime? LastLowered { get; set; }
 
+        [Column("last_disabled")]
+        public DateTime? LastDisabled { get; set; }
+
         public bool HasBeenRaised => LastRaised != null; //default(DateTime);
         public bool HasBeenLowered => LastLowered != null; //default(DateTime);
 
         public TimeSpan? RaisedFor => HasBeenRaised && HasBeenLowered ? (LastRaised - LastLowered) : default(TimeSpan);
+
+        public void AssignFrom(AlarmManager.Alarm alarm)
+        {
+            LastRaised = alarm.LastRaised;
+            LastLowered = alarm.LastLowered;
+            LastDisabled = alarm.LastDisabled;
+        }
+
+        public void AssignTo(AlarmManager.Alarm alarm)
+        {
+            alarm.LastRaised = LastRaised;
+            alarm.LastLowered = LastLowered;
+            alarm.LastDisabled = LastDisabled;
+        }
     }
 
 
@@ -75,6 +92,19 @@ public class AlarmsDBContext : ChetchDbContext
         [Column("alarm_message")]
         public String AlarmMessage { get; set; } = String.Empty;
 
+        [Column("alarm_code")]
+        public int AlarmCode { get; set; } = AlarmManager.NO_CODE;
+
+        public LogEntry(){}
+
+        public LogEntry(long alarmID, AlarmManager.Alarm alarm)
+        {
+            AlarmID = alarmID;
+            AlarmState = alarm.State; //.ToString();
+            AlarmMessage = alarm.Message;
+            AlarmCode = alarm.Code;
+        }
+
     }
 
     public DbSet<Alarm> Alarms { get; set; }
@@ -86,7 +116,11 @@ public class AlarmsDBContext : ChetchDbContext
     #region Constructors
     public AlarmsDBContext(string databaseName = DEFAULT_DATABASE_NAME, string dbConfigKey = "DBConfig") : base(databaseName, dbConfigKey)
     {
-
+        //assert utc time
+        if(this.DateTimeKind != DateTimeKind.Utc)
+        {
+            throw new Exception("Underlying database has to be configured to use Utc");
+        }
     }
     #endregion
 }

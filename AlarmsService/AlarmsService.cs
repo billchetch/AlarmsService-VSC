@@ -61,6 +61,8 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     #endregion
 
     #region Fields
+    ArduinoBoard board;
+
     //If this master is off then any alarm hardwired to the arduino board will go directly to the buzzer rather than via the board
     //if the master is on then it will be disconnected from the buzzer. Without this the alarm could not be silenced as the silecning
     //is done by software
@@ -130,27 +132,20 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             var alm = AlarmManager.RegisterAlarm(this, la.SID, la.Name);
             if(activeAlarms.ContainsKey(la.SID))
             {
-                //alm.LastRaised = activeAlarms[la.SID].LastRaised;
-                //alm.LastLowered = activeAlarms[la.SID].LastLowered;
+                activeAlarms[la.SID].AssignTo(alm);
             }
         }
         
-         //connect these alarms before we add the rest as they should remain disconnected
-        //AlarmManager.Connect(this);
+        //connect these alarms before we add the rest as they should remain disconnected
+        AlarmManager.Connect(this);
 
         //register remote alarms (don't connect as this is done via a connection with remote source)
         //NOTE: we use the SID property of the alarm here
-        /*foreach(var alarm in remoteAlarms)
+        foreach(var alarm in remoteAlarms)
         {
             var alm = AlarmManager.RegisterAlarm(this, alarm.SID, alarm.Name);
-            alm.LastLowered = alarm.LastLowered; //from db
-            alm.LastRaised = alarm.LastRaised; //from db
-        }*/
-
-        var msg = new Message(MessageType.INFO);
-        AlarmManager.AddAlarmsListToMessage(msg);
-        var s = msg.Serialize();
-        Console.WriteLine(s);
+            alarm.AssignTo(alm);
+        }
     }
 
     #endregion
@@ -161,9 +156,8 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         //little bit convuluted this but it will call the register alrams method which will create alarms from DB
         //this is to make consistent the useage of AlarmManager which is designed for easy use in other services
         //This service is an exceptional case
-        AlarmManager.AddRaiser(this);
         AlarmManager.AlarmChanged += (mgr, alarm) => {
-            Console.WriteLine("Alarm {0} has changed to state {1}", alarm.ID, alarm.State);
+            //Console.WriteLine("Alarm {0} has changed to state {1}", alarm.ID, alarm.State);
             
             //if the alarm has been raised and it's for real then end any current tests
             if(IsTesting && alarm.IsRaised && !alarm.IsTesting)
@@ -171,25 +165,29 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 endTest();
             }
 
-            //if any alarm is raised then the master switch is turned on
-            if(alarm.IsRaised)
+            //Board stuff e.g. turning on/off buzzer
+            if(board != null && board.IsReady)
             {
-                master.TurnOn();
-                pilot.TurnOn();
-
-                //here we determine teh conditions under which we turn the buzzer on...
-                if(alarm.State == AlarmManager.AlarmState.CRITICAL)
+                //if any alarm is raised then the master switch is turned on
+                if(alarm.IsRaised)
                 {
-                    buzzer.TurnOn();
+                    master.TurnOn();
+                    pilot.TurnOn();
+
+                    //here we determine teh conditions under which we turn the buzzer on...
+                    if(alarm.State == AlarmManager.AlarmState.CRITICAL)
+                    {
+                        buzzer.TurnOn();
+                    }
                 }
-            }
-            
-            //if all alarms are now off then turn everything off
-            if(!AlarmManager.IsAlarmRaised)
-            {
-                master.TurnOff();
-                pilot.TurnOff();
-                buzzer.TurnOff();
+                
+                //if all alarms are now off then turn everything off
+                if(!AlarmManager.IsAlarmRaised)
+                {
+                    master.TurnOff();
+                    pilot.TurnOff();
+                    buzzer.TurnOff();
+                }
             }
 
             //now record stuff in the db if this isn't a test
@@ -199,24 +197,15 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 {
                     using(var context = new AlarmsDBContext())
                     {
+                        //get the db object corresponding to this alarm
                         var dbAlarm = activeAlarms[alarm.ID];
-                        if(alarm.IsRaised)
-                        {
-                            dbAlarm.LastRaised = DateTime.Now;
-                            dbAlarm.LastLowered = null;
-                        }
-                        else
-                        {
-                            dbAlarm.LastLowered = DateTime.Now;
-                        }
+
+                        //update alarms table
+                        dbAlarm.AssignFrom(alarm);
                         context.Update(dbAlarm);
 
-                        var entry = new AlarmsDBContext.LogEntry();
-                        entry.AlarmID = dbAlarm.ID;
-                        entry.AlarmState = alarm.State; //.ToString();
-                        entry.AlarmMessage = alarm.Message;
-                        context.Add(entry);
-
+                        //create an entry in the alarms_log table
+                        context.Add(new AlarmsDBContext.LogEntry(dbAlarm.ID, alarm));
                         context.SaveChanges();
                     }
                 }
@@ -227,27 +216,31 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             }
 
             //Finally we send this out to any subscribers on the network
-            try
+            if(ServiceConnected)
             {
-                var alertMsg = AlarmManager.CreateAlertMessage(alarm);
-                Broadcast(alertMsg);
-            }
-            catch (Exception e)
-            {
-                Logger.LogError(e, e.Message);
+                try
+                {
+                    var alertMsg = AlarmManager.CreateAlertMessage(alarm);
+                    Broadcast(alertMsg);
+                }
+                catch (Exception e)
+                {
+                    Logger.LogError(e, e.Message);
+                }
             }
 
         };
+        AlarmManager.AddRaiser(this);
         
         //Create an arduino board and add devices
-        ArduinoBoard board = new ArduinoBoard(ARDUINO_BOARD_NAME, 0x7523, BAUD_RATE); //, Frame.FrameSchema.SMALL_NO_CHECKSUM);
+        board = new ArduinoBoard(ARDUINO_BOARD_NAME, 0x7523, BAUD_RATE); //, Frame.FrameSchema.SMALL_NO_CHECKSUM);
         board.Ready += (sender, ready) => {
             //Board ready (or not stuff here) 
         };
         board.AddDevices(controlSwitches);
         board.AddDevices(localAlarms);
         
-        AddBoard(board);
+        //AddBoard(board);
 
         //configure the test timer stuff ... no auto reset as it starts on start test and fires on end test
         testTimer.AutoReset = false;
