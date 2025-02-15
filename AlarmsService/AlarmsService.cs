@@ -82,7 +82,6 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
 
     #region Constructors
     public AlarmsService(ILogger<AlarmsService> Logger) : base(Logger)
-    #endregion
     {
         ChetchDbContext.Config = Config;
 
@@ -122,6 +121,8 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         controlSwitches.Add(buzzer);
         controlSwitches.Add(master);
     }
+    #endregion
+    
 
     #region Alarm Registtration
     public void RegisterAlarms()
@@ -240,14 +241,14 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         board.AddDevices(controlSwitches);
         board.AddDevices(localAlarms);
         
-        //AddBoard(board);
+        //Now add the board to the service (this takes care of connecting it etc)
+        AddBoard(board);
 
         //configure the test timer stuff ... no auto reset as it starts on start test and fires on end test
         testTimer.AutoReset = false;
         testTimer.Elapsed += (sender, eargs) => {
             endTest();
         };
-
 
         return base.Execute(stoppingToken);
     }
