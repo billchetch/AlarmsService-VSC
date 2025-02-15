@@ -117,10 +117,7 @@ public class AlarmsDBContext : ChetchDbContext
     public AlarmsDBContext(string databaseName = DEFAULT_DATABASE_NAME, string dbConfigKey = "DBConfig") : base(databaseName, dbConfigKey)
     {
         //assert utc time
-        if(this.DateTimeKind != DateTimeKind.Utc)
-        {
-            throw new Exception("Underlying database has to be configured to use Utc");
-        }
+        AssertDateTimeUtc();
     }
     #endregion
 }
