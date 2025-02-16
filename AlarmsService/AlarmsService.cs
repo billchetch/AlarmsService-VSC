@@ -120,6 +120,15 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         controlSwitches.Add(pilot);
         controlSwitches.Add(buzzer);
         controlSwitches.Add(master);
+        controlSwitches.Switched += (sender, eargs)=>{
+            if(ServiceConnected && sender != null)
+            {
+                var message = new Message(MessageType.DATA);
+                message.Sender = eargs.Switch.SID;
+                message.AddValue("On", eargs.Switch.IsOn);
+                Broadcast(message);
+            }
+        };
     }
     #endregion
     
