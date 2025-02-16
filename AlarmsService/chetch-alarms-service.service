@@ -4,6 +4,7 @@
 # 4. Check status with sudo systemctl status <file basename>
 # 5. To start/stop service: sudo systemctl <start/stop> <file basename>
 # 6. To have the service run on start up: sudo systemctl enable <file basename>
+# 7. To view the logs in realtime try: sudo journalctl -f -u <file basename>
 
 
 [Unit]
