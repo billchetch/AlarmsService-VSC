@@ -123,8 +123,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         controlSwitches.Switched += (sender, eargs)=>{
             if(ServiceConnected && sender != null)
             {
-                var message = new Message(MessageType.DATA);
-                message.Sender = eargs.Switch.SID;
+                var message = CreateMessageForDevice(eargs.Switch, MessageType.DATA);
                 message.AddValue("On", eargs.Switch.IsOn);
                 Broadcast(message);
             }

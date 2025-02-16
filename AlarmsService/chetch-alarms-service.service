@@ -7,7 +7,7 @@
 
 
 [Unit]
-Description=Chetch GPS Service
+Description=Chetch Alarms Service
 
 [Service]
 Type=simple
