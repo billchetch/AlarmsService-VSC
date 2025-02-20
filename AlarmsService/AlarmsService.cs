@@ -28,7 +28,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     public const String ARDUINO_BOARD_NAME = "alarms-board"; //for identification purposes only
     public const int BAUD_RATE = 9600;
 
-    public const int DEFAULT_TEST_DURATION = 3000;
+    public const int DEFAULT_TEST_DURATION = 3; //in seconds
 
     public const byte MASTER_SWITCH_ID = 10;
     public const byte BUZZER_ID = 11;
@@ -321,7 +321,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 {
                     testDuration = Convert.ToInt16(arguments[2].ToString());
                 }
-                AlarmManager.RunTest(alarmID, alarmState, "Running an alarm test", testDuration);
+                runTest(Test.ALARM, testDuration, alarmID, alarmState);
                 return true;
 
             case COMMAND_TEST_BUZZER:
@@ -356,7 +356,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     #endregion
 
     #region Testing
-    void runTest(Test testToRun, int runFor, String alarmID = null, AlarmManager.AlarmState alarmState = AlarmManager.AlarmState.CRITICAL)
+    void runTest(Test testToRun, int runForSecs, String alarmID = null, AlarmManager.AlarmState alarmState = AlarmManager.AlarmState.CRITICAL)
     {
         if(testToRun == Test.NOT_TESTING)
         {
@@ -370,7 +370,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
 
         switch(testToRun){
             case Test.ALARM:
-                AlarmManager.RunTest(alarmID, alarmState, "Testing cuz", runFor);
+                AlarmManager.RunTest(alarmID, alarmState, "Testing cuz", runForSecs*1000);
                 break;
 
             case Test.BUZZER:
@@ -397,7 +397,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         }
         finally
         {
-            testTimer.Interval = runFor;
+            testTimer.Interval = runForSecs * 1000;
             testTimer.Start();
         }
     }
