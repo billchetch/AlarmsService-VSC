@@ -306,7 +306,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 return true;
 
             case AlarmManager.COMMAND_TEST_ALARM:
-                if(arguments.Count < 1)
+                if(arguments.Count < 2)
                 {
                     throw new ArgumentException("Please specify an alarm to test");
                 }
@@ -316,6 +316,10 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 if(arguments.Count > 1)
                 {
                     alarmState = (AlarmManager.AlarmState)Convert.ToInt16(arguments[1].ToString());
+                    if(alarmState == AlarmManager.AlarmState.LOWERED) //assume this is random
+                    {
+                        alarmState = AlarmManager.GetRandomRaisedState();
+                    }
                 }
                 if(arguments.Count > 2)
                 {
