@@ -26,6 +26,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
 
 
     public const String ARDUINO_BOARD_NAME = "alarms-board"; //for identification purposes only
+    
     public const int BAUD_RATE = 9600;
 
     public const int DEFAULT_TEST_DURATION = 3; //in seconds
@@ -242,10 +243,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         AlarmManager.AddRaiser(this);
         
         //Create an arduino board and add devices
-        board = new ArduinoBoard(ARDUINO_BOARD_NAME, 0x7523, BAUD_RATE); //, Frame.FrameSchema.SMALL_NO_CHECKSUM);
-        board.Ready += (sender, ready) => {
-            //Board ready (or not stuff here) 
-        };
+        board = new ArduinoBoard(ARDUINO_BOARD_NAME);
         board.AddDevices(controlSwitches);
         board.AddDevices(localAlarms);
         
