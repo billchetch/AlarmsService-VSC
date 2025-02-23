@@ -15,6 +15,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Alarms", "..\..\Libraries\A
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Messaging", "..\..\Libraries\Messaging\Messaging\Messaging.csproj", "{FFAB4928-894A-444A-99CF-47EFE02F37D8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Utilities", "..\..\Libraries\Utilities\Utilities\Utilities.csproj", "{D3E0EC02-7402-45A6-AB01-02943D8A678C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -48,5 +50,9 @@ Global
 		{FFAB4928-894A-444A-99CF-47EFE02F37D8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FFAB4928-894A-444A-99CF-47EFE02F37D8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FFAB4928-894A-444A-99CF-47EFE02F37D8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D3E0EC02-7402-45A6-AB01-02943D8A678C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D3E0EC02-7402-45A6-AB01-02943D8A678C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D3E0EC02-7402-45A6-AB01-02943D8A678C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D3E0EC02-7402-45A6-AB01-02943D8A678C}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
