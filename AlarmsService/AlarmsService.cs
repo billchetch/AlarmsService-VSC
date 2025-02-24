@@ -140,7 +140,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 foreach(var remoteSource in remoteSources)
                 {
                     var msg = AlarmManager.CreateListAlarmsMessage(remoteSource);
-                    //SendMessage(msg);
+                    SendMessage(msg);
                 }
             }
         };
