@@ -11,6 +11,9 @@ using XmppDotNet.Xmpp.Jingle;
 using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using System.Runtime.InteropServices;
+using Chetch.ChetchXMPP;
+using XmppDotNet.Xmpp.Google.Push;
 
 namespace Chetch.AlarmsService;
 
@@ -23,13 +26,9 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     public const String COMMAND_SILENCE_BUZZER = "silence";
     public const String COMMAND_UNSILENCE_BUZZER = "unsilence";
 
-
-
     public const String ARDUINO_BOARD_NAME = "alarms-board"; //for identification purposes only
-    
-    public const int BAUD_RATE = 9600;
-
     public const int DEFAULT_TEST_DURATION = 3; //in seconds
+    public const int GET_REMOTE_ALARMS_INTERVAL = 30; //in seconds
 
     public const byte MASTER_SWITCH_ID = 10;
     public const byte BUZZER_ID = 11;
@@ -79,6 +78,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     
     Test currentTest = Test.NOT_TESTING;
     System.Timers.Timer testTimer = new System.Timers.Timer();
+    System.Timers.Timer getRemoteAlarmsTimer = new System.Timers.Timer();
     #endregion
 
     #region Constructors
@@ -108,6 +108,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 }
             };
     
+        //Retrieve alarms data from db
         using(var context = new AlarmsDBContext())
         {
             remoteAlarms = context.Alarms.Where(x => x.Active && x.Source != "local").ToList();
@@ -129,10 +130,23 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 Broadcast(message);
             }
         };
+
+        //Set up timer for getting remote alarms
+        getRemoteAlarmsTimer.Interval = GET_REMOTE_ALARMS_INTERVAL * 1000;
+        getRemoteAlarmsTimer.AutoReset = true;
+        getRemoteAlarmsTimer.Elapsed += (sender, eargs) =>{
+            if(ServiceConnected)
+            {
+                foreach(var remoteSource in remoteSources)
+                {
+                    var msg = AlarmManager.CreateListAlarmsMessage(remoteSource);
+                    //SendMessage(msg);
+                }
+            }
+        };
     }
     #endregion
     
-
     #region Alarm Registtration
     public void RegisterAlarms()
     {
@@ -256,6 +270,24 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             endTest();
         };
 
+        //Once connected to the following
+        ServiceChanged += (sender, serviceEvent) => {
+            if(serviceEvent == ServiceEvent.Connected)
+            {
+                //fire up the timer to check remote alarms status
+                getRemoteAlarmsTimer.Start();
+
+                //ensure subscribed to all remote sources
+                foreach(var remoteSource in remoteSources)
+                {
+                    Subscribe(remoteSource);
+                    var msg = AlarmManager.CreateListAlarmsMessage(remoteSource);
+                    SendMessage(msg);
+                }
+            }
+        };
+        
+
         return base.Execute(stoppingToken);
     }
 
@@ -280,8 +312,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     }
     #endregion
 
-    #region Command handling
-
+    #region Command and general message handling
     protected override void AddCommands()
     {
         AddCommand(AlarmManager.COMMAND_LIST_ALARMS, "List currently active alarms and their state");
@@ -354,6 +385,67 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             default:
                 return base.HandleCommandReceived(command, arguments, response);
         }
+    }
+
+    protected override bool HandleCommandResponseReceived(string originalCommand, Message commandResponse, Message response)
+    {
+        if(originalCommand == AlarmManager.COMMAND_LIST_ALARMS)
+        {
+            try
+            {
+                AlarmManager.UpdateFromListAlarmsResponse(commandResponse);
+            }
+            catch (Exception e)
+            {
+                Logger.LogError(e, e.Message);
+            }
+        }
+        return base.HandleCommandResponseReceived(originalCommand, commandResponse, response);
+    }
+
+    protected override bool HandleMessageReceived(Message message, Message response)
+    {
+        bool isFromRemoteSource = remoteSources.Contains(message.Sender);
+        switch(message.Type)
+        {
+            case MessageType.NOTIFICATION: 
+                //we expect remote source notifications here (such as a remote source has come online)
+                if(IsServiceEventNotification(message) && isFromRemoteSource)
+                {
+                    var remoteSource = message.Sender;
+                    var serviceEvent = message.Get<ServiceEvent>(MESSAGE_FIELD_SERVICE_EVENT);
+                    switch(serviceEvent)
+                    {
+                        case ServiceEvent.Connected:
+                            break;
+
+                        case ServiceEvent.Disconnecting:
+                            break;
+                    }
+                }
+                break;
+
+            case MessageType.SUBSCRIBE_RESPONSE:
+                //Because we subscribe to remote sources we can capture/log the subscription ressponse here
+                //For now this is just for exposition purposes
+                break;
+
+            case MessageType.ALERT:
+                if(isFromRemoteSource && AlarmManager.IsAlertMessage(message))
+                {
+                    try
+                    {
+                        AlarmManager.UpdateFromAlertMessage(message);
+                    }
+                    catch (Exception e)
+                    {
+                        Logger.LogError(e, e.Message);
+                    }
+                }
+                break;
+
+        }
+        return base.HandleMessageReceived(message, response);
     }
     #endregion
 
