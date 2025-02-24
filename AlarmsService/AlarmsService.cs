@@ -255,7 +255,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
 
         };
         AlarmManager.AddRaiser(this);
-        
+ 
         //Create an arduino board and add devices
         board = new ArduinoBoard(ARDUINO_BOARD_NAME);
         board.AddDevices(controlSwitches);
