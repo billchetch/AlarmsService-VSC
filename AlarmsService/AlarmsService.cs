@@ -160,9 +160,6 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             }
         }
         
-        //connect these alarms before we add the rest as they should remain disconnected
-        AlarmManager.Connect(this);
-
         //register remote alarms (don't connect as this is done via a connection with remote source)
         //NOTE: we use the SID property of the alarm here
         foreach(var alarm in remoteAlarms)
