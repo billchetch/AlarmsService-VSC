@@ -278,9 +278,12 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 foreach(var remoteSource in remoteSources)
                 {
                     Subscribe(remoteSource);
-                    var msg = AlarmManager.CreateListAlarmsMessage(remoteSource);
-                    SendMessage(msg);
+                    requestAlarmsList(remoteSource);
                 }
+
+                SysLogDBContext.Log(SysLogDBContext.LogEntryType.INFO,
+                                            
+                );
             }
         };
         
@@ -400,6 +403,13 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         return base.HandleCommandResponseReceived(originalCommand, commandResponse, response);
     }
 
+
+    void requestAlarmsList(String remoteSource)
+    {
+        var msg = AlarmManager.CreateListAlarmsMessage(remoteSource);
+        SendMessage(msg);
+    }
+
     protected override bool HandleMessageReceived(Message message, Message response)
     {
         bool isFromRemoteSource = remoteSources.Contains(message.Sender);
@@ -414,9 +424,12 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                     switch(serviceEvent)
                     {
                         case ServiceEvent.Connected:
+                            requestAlarmsList(remoteSource);
                             break;
 
                         case ServiceEvent.Disconnecting:
+                            //Set alarm status to disconnected for all alarms in this remote source
+                            AlarmManager.Disconnect(remoteSource);
                             break;
                     }
                 }

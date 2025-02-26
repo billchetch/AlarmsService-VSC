@@ -57,6 +57,7 @@ public class AlarmsDBContext : ChetchDbContext
 
         public void AssignTo(AlarmManager.Alarm alarm)
         {
+            alarm.Source = Source;
             alarm.LastRaised = LastRaised;
             alarm.LastLowered = LastLowered;
             alarm.LastDisabled = LastDisabled;
