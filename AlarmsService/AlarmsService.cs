@@ -243,6 +243,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 {
                     var alertMsg = AlarmManager.CreateAlertMessage(alarm);
                     Broadcast(alertMsg);
+                    Logger.LogInformation("Broadcasting alert message {0}", alertMsg.SubType);
                 }
                 catch (Exception e)
                 {
@@ -281,9 +282,13 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                     requestAlarmsList(remoteSource);
                 }
 
-                SysLogDBContext.Log(SysLogDBContext.LogEntryType.INFO,
-                                            
-                );
+                try
+                {
+                    SysLogDBContext.Log(AlarmsDBContext.DEFAULT_DATABASE_NAME, 
+                                            SysLogDBContext.LogEntryType.INFO,
+                                            "Alarms Service connected");
+                                        
+                } catch {}
             }
         };
         
@@ -432,6 +437,14 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                             AlarmManager.Disconnect(remoteSource);
                             break;
                     }
+
+                    try
+                    {
+                        SysLogDBContext.Log(AlarmsDBContext.DEFAULT_DATABASE_NAME, 
+                                                SysLogDBContext.LogEntryType.INFO,
+                                               String.Format("{0}: {1}", remoteSource, serviceEvent));
+                                            
+                    } catch {}
                 }
                 break;
 
