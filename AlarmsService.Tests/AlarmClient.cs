@@ -11,7 +11,7 @@ namespace AlarmsService.Tests;
 [TestClass]
 public class AlarmClient : AlarmTestBase
 {
-    const String USERNAME = "bbalarms.client@openfire.bb.lan";
+    public const String USERNAME = "bbalarms.client@openfire.bb.lan";
     const String PASSWORD = "bbalarms";
 
     CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
