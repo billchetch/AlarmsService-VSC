@@ -14,7 +14,7 @@ public class AlarmClient : AlarmTestBase
     const String USERNAME = "bbalarms.client@openfire.bb.lan";
     const String PASSWORD = "bbalarms";
 
-    
+    CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
     public AlarmClient() : base(USERNAME, PASSWORD)
     {
         
@@ -22,7 +22,9 @@ public class AlarmClient : AlarmTestBase
             switch(eargs.Message.Type)
             {
                 case MessageType.ALERT:
-                    Debug.Print("Received alert from {0}", eargs.Message.Sender);
+                    AlarmManager.Alarm alarm = eargs.Message.Get<AlarmManager.Alarm>(AlarmManager.MESSAGE_FIELD_ALARM);
+                    Debug.Print("Alarm {0} sends message {1}", alarm.ID, alarm.Message);
+                    cancellationTokenSource.Cancel();
                     break;
 
                 case MessageType.COMMAND_RESPONSE:
@@ -44,6 +46,10 @@ public class AlarmClient : AlarmTestBase
                     String errorMessage = eargs.Message.HasValue("ErrorMessage") ?  eargs.Message.GetString("ErrorMessage") :  eargs.Message.GetString("Message");
                     Debug.Print("Error!: {0}", errorMessage);
                     break;
+
+                case MessageType.NOTIFICATION:
+                    cancellationTokenSource.Cancel();
+                    break;
             }
         };
     }
@@ -55,12 +61,13 @@ public class AlarmClient : AlarmTestBase
             Task t = base.ConnectClient();
             await t;
             
+            Debug.WriteLine("Subscribing...");
             var msg = ChetchXMPPMessaging.CreateSubscribeMessage(ALARMS_SERVICE);
             await SendMessage(msg);
         }
         catch (Exception e)
         {
-            Debug.Print("Error: {0}", e.Message);
+            Debug.WriteLine("Error: {0}", e.Message);
         }
     }
 
@@ -68,7 +75,13 @@ public class AlarmClient : AlarmTestBase
     public async Task Listen()
     {
         await ConnectClient();
-        await Task.Delay(10000);
+        await Task.Run(()=>{
+            do{
+                Thread.Sleep(1000);
+            } while (!cancellationTokenSource.Token.IsCancellationRequested);
+            
+            Debug.WriteLine("Listening ended as cancellation request has been made");
+        }, cancellationTokenSource.Token);
     }
 
     [TestMethod]

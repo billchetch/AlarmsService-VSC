@@ -24,9 +24,9 @@ public class AlarmTestBase
 
     protected virtual Task ConnectClient()
     {
-        Debug.Print("Connecting {0} ...", cnn.Username);
+        Debug.WriteLine("Connecting {0} ...", cnn.Username);
         Task t = cnn.ConnectAsync();
-        Debug.Print("{0} connected!", cnn.Username);
+        Debug.WriteLine("{0} connected!", cnn.Username);
         return t;
     }
 
