@@ -8,7 +8,7 @@ namespace AlarmsService.Tests;
 [TestClass]
 public sealed class AlarmRaiser : AlarmTestBase, AlarmManager.IAlarmRaiser
 {
-    const String USERNAME = "bbalarms.raiser@openfire.bb.lan";
+    public const String USERNAME = "bbalarms.raiser@openfire.bb.lan";
     const String PASSWORD = "8ulan8aru";
 
     public AlarmRaiser() : base(USERNAME, PASSWORD)
@@ -36,14 +36,19 @@ public sealed class AlarmRaiser : AlarmTestBase, AlarmManager.IAlarmRaiser
         AlarmManager.RegisterAlarm(this, "test", "Test alarm kak Test");
     }
 
-    
-
     [TestMethod]
     public async Task RaiseAndLowerTestAlarm()
     {
         await ConnectClient();
-        AlarmManager.Raise("test", AlarmManager.AlarmState.MODERATE, "Fuck its working");
-        await Task.Delay(2000);
-        AlarmManager.Lower("test", "lowered bro");
+        
+        for(int i = 0; i < 10; i++)
+        {
+            var msg = String.Format("Test alarm raised {0}", i + 1);
+            AlarmManager.Raise("test", AlarmManager.AlarmState.MODERATE, msg);
+            await Task.Delay(2000);
+            AlarmManager.Lower("test", "Lowered bro");
+        }
+
+        NotifyTestEnd(AlarmClient.USERNAME);
     }
 }

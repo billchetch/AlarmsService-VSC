@@ -30,10 +30,20 @@ public class AlarmTestBase
         return t;
     }
 
-    protected  Task SendMessage(Message msg)
+    protected Task SendMessage(Message msg)
     {
-        msg.Target = ALARMS_SERVICE;
+        if(String.IsNullOrEmpty(msg.Target))
+        {
+            msg.Target = ALARMS_SERVICE;
+        }
         msg.Sender = cnn.Username;
         return cnn.SendMessageAsync(msg);
+    }
+
+    protected void NotifyTestEnd(String targetTonotify)
+    {
+        var msg = ChetchXMPPMessaging.CreateNotificationMessage(1);
+        msg.Target = targetTonotify;
+        SendMessage(msg);
     }
 }
