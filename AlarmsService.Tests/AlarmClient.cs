@@ -24,7 +24,6 @@ public class AlarmClient : AlarmTestBase
                 case MessageType.ALERT:
                     AlarmManager.Alarm alarm = eargs.Message.Get<AlarmManager.Alarm>(AlarmManager.MESSAGE_FIELD_ALARM);
                     Debug.Print("Alarm {0} sends message {1}", alarm.ID, alarm.Message);
-                    cancellationTokenSource.Cancel();
                     break;
 
                 case MessageType.COMMAND_RESPONSE:
@@ -48,6 +47,7 @@ public class AlarmClient : AlarmTestBase
                     break;
 
                 case MessageType.NOTIFICATION:
+                    Debug.Print("Notifcadtion received");
                     cancellationTokenSource.Cancel();
                     break;
             }
@@ -76,6 +76,7 @@ public class AlarmClient : AlarmTestBase
     {
         await ConnectClient();
         await Task.Run(()=>{
+            Debug.WriteLine("Started listening...");
             do{
                 Thread.Sleep(1000);
             } while (!cancellationTokenSource.Token.IsCancellationRequested);
