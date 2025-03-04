@@ -40,7 +40,8 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     public const byte HIGHWATER_ALARM_ID = 15;
     public const String HIGHWATER_ALARM_NAME = "hw";
 
-    
+    public const String LOCAL_SOURCE_NAME = "local";
+
     #endregion
     
     #region Classes and Enums
@@ -70,8 +71,8 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     Buzzer buzzer = new Buzzer(BUZZER_ID, "buzzer");
     SwitchDevice pilot = new SwitchDevice(PILOT_ID, "pilot");
 
-    SwitchGroup localAlarms = new SwitchGroup();
-    SwitchGroup controlSwitches = new SwitchGroup();
+    SwitchGroup localAlarms = new SwitchGroup("Local Alarms");
+    SwitchGroup controlSwitches = new SwitchGroup("Control Switches");
     List<AlarmsDBContext.Alarm> remoteAlarms = new List<AlarmsDBContext.Alarm>();
     Dictionary<String, AlarmsDBContext.Alarm> activeAlarms = new Dictionary<String, AlarmsDBContext.Alarm>();
     List<String> remoteSources = new List<String>();
@@ -88,8 +89,8 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
 
         //add local alarms to an array for convenience
         localAlarms.Add(new SwitchDevice(GENSET_ALARM_ID, GENSET_ALARM_NAME, "Gensets"));
-        localAlarms.Add(new SwitchDevice(INVERTER_ALARM_ID, INVERTER_ALARM_NAME, "Inverter"));
-        localAlarms.Add(new SwitchDevice(HIGHWATER_ALARM_ID, HIGHWATER_ALARM_NAME, "High Water"));
+        //localAlarms.Add(new SwitchDevice(INVERTER_ALARM_ID, INVERTER_ALARM_NAME, "Inverter"));
+        //localAlarms.Add(new SwitchDevice(HIGHWATER_ALARM_ID, HIGHWATER_ALARM_NAME, "High Water"));
         localAlarms.Switched += (sender, eargs) => {
                 if(eargs.Switch == null)return;
                     
@@ -107,7 +108,18 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                         );
                 }
             };
-    
+        localAlarms.Ready += (sender, ready) => {
+            Console.WriteLine("Local alarms ready: {0}", ready);
+            if(ready)
+            {
+                AlarmManager.Connect(LOCAL_SOURCE_NAME);
+            }
+            else
+            {
+                AlarmManager.Disconnect(LOCAL_SOURCE_NAME);
+            }
+        };
+
         //Retrieve alarms data from db
         using(var context = new AlarmsDBContext())
         {
@@ -129,6 +141,9 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 message.AddValue("On", eargs.Switch.IsOn);
                 Broadcast(message);
             }
+        };
+        controlSwitches.Ready += (sender, ready) => {
+            Console.WriteLine("Control switches ready: {0}", ready);
         };
 
         //Set up timer for getting remote alarms
@@ -187,7 +202,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             }
 
             //Board stuff e.g. turning on/off buzzer
-            if(board != null && board.IsReady)
+            if(board != null && controlSwitches.IsReady)
             {
                 //if any alarm is raised then the master switch is turned on
                 if(alarm.IsRaised)
@@ -243,15 +258,16 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 {
                     var alertMsg = AlarmManager.CreateAlertMessage(alarm);
                     Broadcast(alertMsg);
-                    Logger.LogInformation("Broadcasting alert message {0}", alertMsg.SubType);
+                    Logger.LogInformation("Broadcasting alert message for alarm {0} ", alarm.ID);
                 }
                 catch (Exception e)
                 {
                     Logger.LogError(e, e.Message);
                 }
             }
+        }; //end of alarm changed even handler
 
-        };
+        //Add the service as a raiser, this will call RegisterAlarms (see above)
         AlarmManager.AddRaiser(this);
  
         //Create an arduino board and add devices
