@@ -93,30 +93,36 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         //localAlarms.Add(new SwitchDevice(HIGHWATER_ALARM_ID, HIGHWATER_ALARM_NAME, "High Water"));
         localAlarms.Switched += (sender, eargs) => {
                 if(eargs.Switch == null)return;
-                    
-                if(eargs.PinState)
-                {
-                    AlarmManager.Raise(eargs.Switch.SID,
-                            AlarmManager.AlarmState.CRITICAL,
-                            "Local alarm raised"
-                        );
-                }
-                else
-                {
-                    AlarmManager.Lower(eargs.Switch.SID,
-                            "Local alarm lowered"
-                        );
-                }
+
+                Task.Run(() => {  
+                    while(!controlSwitches.IsReady)
+                    {
+                        Thread.Sleep(10);
+                    }  
+                    if(eargs.PinState)
+                    {
+                        AlarmManager.Raise(eargs.Switch.SID,
+                                AlarmManager.AlarmState.CRITICAL,
+                                "Local alarm raised"
+                            );
+                    }
+                    else
+                    {
+                        AlarmManager.Lower(eargs.Switch.SID,
+                                "Local alarm lowered"
+                            );
+                    }
+                });
             };
         localAlarms.Ready += (sender, ready) => {
             Console.WriteLine("Local alarms ready: {0}", ready);
             if(ready)
             {
-                AlarmManager.Connect(LOCAL_SOURCE_NAME);
+                //AlarmManager.Connect(LOCAL_SOURCE_NAME);
             }
             else
             {
-                AlarmManager.Disconnect(LOCAL_SOURCE_NAME);
+                //AlarmManager.Disconnect(LOCAL_SOURCE_NAME);
             }
         };
 
