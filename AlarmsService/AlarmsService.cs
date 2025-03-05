@@ -93,12 +93,13 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         //localAlarms.Add(new SwitchDevice(HIGHWATER_ALARM_ID, HIGHWATER_ALARM_NAME, "High Water"));
         localAlarms.Switched += (sender, eargs) => {
                 if(eargs.Switch == null)return;
-
-                Task.Run(() => {  
-                    while(!controlSwitches.IsReady)
+                Console.WriteLine("Local Alarm {0} Switched, PinState={1}", eargs.Switch.SID, eargs.PinState);
+                Task.Run(() => {
+                    //Wait until control switches are ready or the board becomes unready
+                    while(board != null && board.IsReady && !controlSwitches.IsReady)
                     {
                         Thread.Sleep(10);
-                    }  
+                    }
                     if(eargs.PinState)
                     {
                         AlarmManager.Raise(eargs.Switch.SID,
@@ -118,18 +119,18 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             Console.WriteLine("Local alarms ready: {0}", ready);
             if(ready)
             {
-                //AlarmManager.Connect(LOCAL_SOURCE_NAME);
+                AlarmManager.Connect(LOCAL_SOURCE_NAME);
             }
             else
             {
-                //AlarmManager.Disconnect(LOCAL_SOURCE_NAME);
+                AlarmManager.Disconnect(LOCAL_SOURCE_NAME);
             }
         };
 
         //Retrieve alarms data from db
         using(var context = new AlarmsDBContext())
         {
-            remoteAlarms = context.Alarms.Where(x => x.Active && x.Source != "local").ToList();
+            remoteAlarms = context.Alarms.Where(x => x.Active && x.Source != LOCAL_SOURCE_NAME).ToList();
             remoteSources = context.Alarms.GroupBy(x => x.Source).Select(x => x.First().Source).Where(x => x != "local").ToList();
             
             //keep a record of this from the db for convenience
@@ -210,6 +211,8 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             //Board stuff e.g. turning on/off buzzer
             if(board != null && controlSwitches.IsReady)
             {
+                Logger.LogInformation("Turning control switches on: {0} ", alarm.IsRaised);
+
                 //if any alarm is raised then the master switch is turned on
                 if(alarm.IsRaised)
                 {
@@ -264,7 +267,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 {
                     var alertMsg = AlarmManager.CreateAlertMessage(alarm);
                     Broadcast(alertMsg);
-                    Logger.LogInformation("Broadcasting alert message for alarm {0} ", alarm.ID);
+                    Logger.LogInformation("Broadcasting alert message for alarm {0}: {1}, code: {2} ", alarm.ID, alarm.State, alarm.Code);
                 }
                 catch (Exception e)
                 {
