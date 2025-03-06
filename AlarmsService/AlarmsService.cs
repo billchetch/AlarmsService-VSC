@@ -100,14 +100,14 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                     {
                         Thread.Sleep(10);
                     }
-                    if(eargs.PinState)
+                    if(eargs.Switch.IsOn)
                     {
                         AlarmManager.Raise(eargs.Switch.SID,
                                 AlarmManager.AlarmState.CRITICAL,
                                 "Local alarm raised"
                             );
                     }
-                    else
+                    else //assume is off
                     {
                         AlarmManager.Lower(eargs.Switch.SID,
                                 "Local alarm lowered"
