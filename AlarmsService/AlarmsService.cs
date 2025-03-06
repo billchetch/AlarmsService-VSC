@@ -92,7 +92,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         //localAlarms.Add(new SwitchDevice(INVERTER_ALARM_ID, INVERTER_ALARM_NAME, "Inverter"));
         //localAlarms.Add(new SwitchDevice(HIGHWATER_ALARM_ID, HIGHWATER_ALARM_NAME, "High Water"));
         localAlarms.Switched += (sender, eargs) => {
-                if(eargs.Switch == null)return;
+                if(eargs.Switch == null || !eargs.Switch.IsReady)return;
                 Console.WriteLine("Local Alarm {0} Switched, PinState={1}", eargs.Switch.SID, eargs.PinState);
                 Task.Run(() => {
                     //Wait until control switches are ready or the board becomes unready
