@@ -4,16 +4,7 @@ using Chetch.Arduino.Devices.Buzzers;
 using Chetch.Alarms;
 using Chetch.Database;
 using Chetch.Messaging;
-using XmppDotNet.Xmpp.XHtmlIM;
-using XmppDotNet.Xmpp.Muc;
-using System.Reflection.Metadata.Ecma335;
-using XmppDotNet.Xmpp.Jingle;
-using System.Diagnostics;
-using System.Text.Json;
-using Microsoft.EntityFrameworkCore.Diagnostics;
-using System.Runtime.InteropServices;
-using Chetch.ChetchXMPP;
-using XmppDotNet.Xmpp.Google.Push;
+using Chetch.Utilities;
 
 namespace Chetch.AlarmsService;
 
@@ -92,28 +83,21 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         //localAlarms.Add(new SwitchDevice(INVERTER_ALARM_ID, INVERTER_ALARM_NAME, "Inverter"));
         //localAlarms.Add(new SwitchDevice(HIGHWATER_ALARM_ID, HIGHWATER_ALARM_NAME, "High Water"));
         localAlarms.Switched += (sender, eargs) => {
-                if(eargs.Switch == null || !eargs.Switch.IsReady)return;
+                if(eargs.Switch == null)return;
                 Console.WriteLine("Local Alarm {0} Switched, PinState={1}", eargs.Switch.SID, eargs.PinState);
-                Task.Run(() => {
-                    //Wait until control switches are ready or the board becomes unready
-                    while(board != null && board.IsReady && !controlSwitches.IsReady)
-                    {
-                        Thread.Sleep(10);
-                    }
-                    if(eargs.Switch.IsOn)
-                    {
-                        AlarmManager.Raise(eargs.Switch.SID,
-                                AlarmManager.AlarmState.CRITICAL,
-                                "Local alarm raised"
-                            );
-                    }
-                    else //assume is off
-                    {
-                        AlarmManager.Lower(eargs.Switch.SID,
-                                "Local alarm lowered"
-                            );
-                    }
-                });
+                if(eargs.Switch.IsOn)
+                {
+                    AlarmManager.Raise(eargs.Switch.SID,
+                            AlarmManager.AlarmState.CRITICAL,
+                            "Local alarm raised"
+                        );
+                }
+                else //assume is off
+                {
+                    AlarmManager.Lower(eargs.Switch.SID,
+                            "Local alarm lowered"
+                        );
+                }
             };
         localAlarms.Ready += (sender, ready) => {
             Console.WriteLine("Local alarms ready: {0}", ready);
@@ -124,6 +108,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             else
             {
                 AlarmManager.Disconnect(LOCAL_SOURCE_NAME);
+                AlarmManager.Flush();
             }
         };
 
@@ -151,6 +136,12 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         };
         controlSwitches.Ready += (sender, ready) => {
             Console.WriteLine("Control switches ready: {0}", ready);
+            foreach(SwitchDevice sw in controlSwitches)
+            {
+                var message = CreateMessageForDevice(sw, MessageType.DATA);
+                message.AddValue("On", ready ? sw.IsOn : false);
+                Broadcast(message);
+            }
         };
 
         //Set up timer for getting remote alarms
@@ -190,30 +181,24 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             alarm.AssignTo(alm);
         }
     }
-
     #endregion
 
     #region Service Lifecycle
     protected override Task Execute(CancellationToken stoppingToken)
     {
-        //little bit convuluted this but it will call the register alrams method which will create alarms from DB
-        //this is to make consistent the useage of AlarmManager which is designed for easy use in other services
-        //This service is an exceptional case
+        //Respond to key alarm manager evernts
         AlarmManager.AlarmChanged += (mgr, alarm) => {
-            //Console.WriteLine("Alarm {0} has changed to state {1}", alarm.ID, alarm.State);
-            
             //if the alarm has been raised and it's for real then end any current tests
             if(IsTesting && alarm.IsRaised && !alarm.IsTesting)
             {
                 endTest();
             }
-
-            //Board stuff e.g. turning on/off buzzer
-            if(board != null && controlSwitches.IsReady)
+        }; //end of alarm changed even handler
+        AlarmManager.AlarmDequeued += (sender, alarm) => {
+            //if any alarm is raised then the master switch is turned on
+            Logger.LogInformation("Turning control switches on, alarm raised: {0} ", alarm.IsRaised);
+            try
             {
-                Logger.LogInformation("Turning control switches on: {0} ", alarm.IsRaised);
-
-                //if any alarm is raised then the master switch is turned on
                 if(alarm.IsRaised)
                 {
                     master.TurnOn();
@@ -233,6 +218,10 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                     pilot.TurnOff();
                     buzzer.TurnOff();
                 }
+            }
+            catch (Exception e)
+            {
+                Logger.LogError(e, e.Message);
             }
 
             //now record stuff in the db if this isn't a test
@@ -274,11 +263,15 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                     Logger.LogError(e, e.Message);
                 }
             }
-        }; //end of alarm changed even handler
-
+        };
+        
         //Add the service as a raiser, this will call RegisterAlarms (see above)
         AlarmManager.AddRaiser(this);
- 
+
+        //Fire up the alarm manager
+        AlarmManager.Run(() => board != null && board.IsReady && controlSwitches.IsReady, stoppingToken);
+        Logger.LogInformation("Alarm Manager set up and running...");
+
         //Create an arduino board and add devices
         board = new ArduinoBoard(ARDUINO_BOARD_NAME);
         board.AddDevices(controlSwitches);
@@ -286,6 +279,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         
         //Now add the board to the service (this takes care of connecting it etc)
         AddBoard(board);
+        Logger.LogInformation("Arduino board set up and added to the service...");
 
         //configure the test timer stuff ... no auto reset as it starts on start test and fires on end test
         testTimer.AutoReset = false;
@@ -317,7 +311,6 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             }
         };
         
-
         return base.Execute(stoppingToken);
     }
 
@@ -374,7 +367,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 int testDuration = DEFAULT_TEST_DURATION;
                 if(arguments.Count > 1)
                 {
-                    alarmState = (AlarmManager.AlarmState)Convert.ToInt16(arguments[1].ToString());
+                    alarmState = (AlarmManager.AlarmState)System.Convert.ToInt16(arguments[1].ToString());
                     if(alarmState == AlarmManager.AlarmState.LOWERED) //assume this is random
                     {
                         alarmState = AlarmManager.GetRandomRaisedState();
@@ -382,7 +375,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 }
                 if(arguments.Count > 2)
                 {
-                    testDuration = Convert.ToInt16(arguments[2].ToString());
+                    testDuration = System.Convert.ToInt16(arguments[2].ToString());
                 }
                 runTest(Test.ALARM, testDuration, alarmID, alarmState);
                 return true;
@@ -404,7 +397,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 {
                     throw new ArgumentException("Please specify a silence duration");
                 }
-                int silenceDuration = Convert.ToInt16(arguments[0].ToString());
+                int silenceDuration = System.Convert.ToInt16(arguments[0].ToString());
                 buzzer.Silence(silenceDuration);
                 return true;
 
