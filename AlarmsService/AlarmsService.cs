@@ -25,11 +25,11 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     public const byte BUZZER_ID = 11;
     public const byte PILOT_ID = 12;
     public const byte GENSET_ALARM_ID = 13;
-    public const String GENSET_ALARM_NAME = "gs";
+    public const String GENSET_ALARM_SID = "gs";
     public const byte INVERTER_ALARM_ID = 14;
-    public const String INVERTER_ALARM_NAME = "iv";
+    public const String INVERTER_ALARM_SID = "iv";
     public const byte HIGHWATER_ALARM_ID = 15;
-    public const String HIGHWATER_ALARM_NAME = "hw";
+    public const String HIGHWATER_ALARM_SID = "hw";
 
     public const String LOCAL_SOURCE_NAME = "local";
 
@@ -79,9 +79,9 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         ChetchDbContext.Config = Config;
 
         //add local alarms to an array for convenience
-        localAlarms.Add(new SwitchDevice(GENSET_ALARM_ID, GENSET_ALARM_NAME, "Gensets"));
-        //localAlarms.Add(new SwitchDevice(INVERTER_ALARM_ID, INVERTER_ALARM_NAME, "Inverter"));
-        //localAlarms.Add(new SwitchDevice(HIGHWATER_ALARM_ID, HIGHWATER_ALARM_NAME, "High Water"));
+        localAlarms.Add(new SwitchDevice(GENSET_ALARM_ID, GENSET_ALARM_SID, "Gensets"));
+        localAlarms.Add(new SwitchDevice(INVERTER_ALARM_ID, INVERTER_ALARM_SID, "Inverter"));
+        localAlarms.Add(new SwitchDevice(HIGHWATER_ALARM_ID, HIGHWATER_ALARM_SID, "High Water"));
         localAlarms.Switched += (sender, eargs) => {
                 if(eargs.Switch == null)return;
                 Console.WriteLine("Local Alarm {0} Switched, PinState={1}", eargs.Switch.SID, eargs.PinState);
@@ -410,6 +410,12 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         }
     }
 
+    protected override void PopulateServiceStatusResponse(Message response)
+    {
+        base.PopulateServiceStatusResponse(response);
+
+        response.AddValue("AMRunningStatus", AlarmManager.RunningStatus);
+    }
     protected override bool HandleCommandResponseReceived(string originalCommand, Message commandResponse, Message response)
     {
         if(originalCommand == AlarmManager.COMMAND_LIST_ALARMS)
