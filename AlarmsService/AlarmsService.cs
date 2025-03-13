@@ -358,7 +358,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 return true;
 
             case AlarmManager.COMMAND_TEST_ALARM:
-                if(arguments.Count < 2)
+                if(arguments.Count == 0)
                 {
                     throw new ArgumentException("Please specify an alarm to test");
                 }
