@@ -568,14 +568,16 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
 
         try
         {
+            currentTest = Test.NOT_TESTING;
+
             var msg = new Message(MessageType.NOTIFICATION);
             msg.AddValue("CurrentTest", currentTest);
             msg.AddValue("Testing", IsTesting);
             Broadcast(msg);
         } 
-        finally 
+        catch (Exception e) 
         {
-            currentTest = Test.NOT_TESTING;
+            Logger.LogError(e, e.Message);
         }
     }
     #endregion
