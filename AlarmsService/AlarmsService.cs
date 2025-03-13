@@ -18,7 +18,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     public const String COMMAND_UNSILENCE_BUZZER = "unsilence";
 
     public const String ARDUINO_BOARD_NAME = "alarms-board"; //for identification purposes only
-    public const int DEFAULT_TEST_DURATION = 3; //in seconds
+    public const int DEFAULT_TEST_DURATION = 5; //in seconds
     public const int GET_REMOTE_ALARMS_INTERVAL = 30; //in seconds
 
     public const byte MASTER_SWITCH_ID = 10;
