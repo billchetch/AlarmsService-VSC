@@ -191,7 +191,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             //if the alarm has been raised and it's for real then end any current tests
             if(IsTesting && alarm.IsRaised && !alarm.IsTesting)
             {
-                //endTest();
+                endTest();
             }
         }; //end of alarm changed even handler
         AlarmManager.AlarmDequeued += (sender, alarm) => {
