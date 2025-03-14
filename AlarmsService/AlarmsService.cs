@@ -191,7 +191,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             //if the alarm has been raised and it's for real then end any current tests
             if(IsTesting && alarm.IsRaised && !alarm.IsTesting)
             {
-                endTest();
+                //endTest();
             }
         }; //end of alarm changed even handler
         AlarmManager.AlarmDequeued += (sender, alarm) => {
@@ -256,7 +256,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 {
                     var alertMsg = AlarmManager.CreateAlertMessage(alarm);
                     Broadcast(alertMsg);
-                    Logger.LogInformation("Broadcasting alert message for alarm {0}: {1}, code: {2} ", alarm.ID, alarm.State, alarm.Code);
+                    Logger.LogInformation("Broadcasting alert message for alarm {0}: {1}, code: {2}, testing: {3}", alarm.ID, alarm.State, alarm.Code, alarm.IsTesting);
                 }
                 catch (Exception e)
                 {
@@ -511,7 +511,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
 
         switch(testToRun){
             case Test.ALARM:
-                AlarmManager.RunTest(alarmID, alarmState, "Testing cuz", runForSecs*1000);
+                AlarmManager.StartTest(alarmID, alarmState, "Testing cuz");
                 break;
 
             case Test.BUZZER:
