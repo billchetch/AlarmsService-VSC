@@ -42,11 +42,11 @@ public sealed class AlarmRaiser : AlarmTestBase, AlarmManager.IAlarmRaiser
         await ConnectClient();
         
         var rand = new Random();
-        for(int i = 0; i < 20; i++)
+        for(int i = 0; i < 5; i++)
         {
             var msg = String.Format("Test alarm raised {0}", i + 1);
             AlarmManager.Raise("test", AlarmManager.AlarmState.MODERATE, msg);
-            await Task.Delay(rand.Next(1000, 2000));
+            await Task.Delay(7000); //rand.Next(1000, 20000));
             AlarmManager.Lower("test", "Lowered bro");
             await Task.Delay(rand.Next(1000, 2000));
         }
