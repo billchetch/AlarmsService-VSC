@@ -9,6 +9,7 @@
 
 [Unit]
 Description=Chetch Alarms Service
+After=openfire.service
 
 [Service]
 Type=simple
