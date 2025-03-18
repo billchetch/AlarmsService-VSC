@@ -196,7 +196,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         }; //end of alarm changed even handler
         AlarmManager.AlarmDequeued += (sender, alarm) => {
             //if any alarm is raised then the master switch is turned on
-            /*try
+            try
             {
                 if(alarm.IsRaised)
                 {
@@ -221,7 +221,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             catch (Exception e)
             {
                 Logger.LogError(e, e.Message);
-            } */
+            } 
 
             //now record stuff in the db if this isn't a test
             if(!alarm.IsTesting)
@@ -268,8 +268,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         AlarmManager.AddRaiser(this);
 
         //Fire up the alarm manager
-        //AlarmManager.Run(() => board != null && board.IsReady && controlSwitches.IsReady, stoppingToken);
-        AlarmManager.Run(stoppingToken);
+        AlarmManager.Run(() => board != null && board.IsReady && controlSwitches.IsReady, stoppingToken);
         Logger.LogInformation("Alarm Manager set up and running...");
 
         //Create an arduino board and add devices
