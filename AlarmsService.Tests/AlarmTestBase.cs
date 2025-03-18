@@ -30,6 +30,14 @@ public class AlarmTestBase
         return t;
     }
 
+    protected virtual Task DisconnectClient()
+    {
+        Debug.WriteLine("Disconnecting {0} ...", cnn.Username);
+        Task t = cnn.DisconnectAsync();
+        Debug.WriteLine("{0} disconnected!", cnn.Username);
+        return t;
+    }
+
     protected Task SendMessage(Message msg)
     {
         if(String.IsNullOrEmpty(msg.Target))
