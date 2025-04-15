@@ -20,6 +20,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     public const String ARDUINO_BOARD_NAME = "alarms-board"; //for identification purposes only
     public const int DEFAULT_TEST_DURATION = 5; //in seconds
     public const int GET_REMOTE_ALARMS_INTERVAL = 30; //in seconds
+    public const int REFRESH_LOCAL_ALARMS_INTERVAL = 60; //in seconds
 
     public const byte MASTER_SWITCH_ID = 10;
     public const byte BUZZER_ID = 11;
@@ -71,6 +72,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     Test currentTest = Test.NOT_TESTING;
     System.Timers.Timer testTimer = new System.Timers.Timer();
     System.Timers.Timer getRemoteAlarmsTimer = new System.Timers.Timer();
+    System.Timers.Timer refreshLocalAlarmsTimer = new System.Timers.Timer();
     #endregion
 
     #region Constructors
@@ -154,6 +156,19 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 {
                     var msg = AlarmManager.CreateListAlarmsMessage(remoteSource);
                     SendMessage(msg);
+                }
+            }
+        };
+
+        //Set up timer for requesting local alarms status
+        refreshLocalAlarmsTimer.Interval = REFRESH_LOCAL_ALARMS_INTERVAL * 1000;
+        refreshLocalAlarmsTimer.AutoReset = true;
+        refreshLocalAlarmsTimer.Elapsed += (sender, args) =>{
+            if(ServiceConnected && localAlarms.IsReady)
+            {
+                foreach(var la in localAlarms)
+                {
+                    la.RequestStatus();
                 }
             }
         };
@@ -293,6 +308,9 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 //fire up the timer to check remote alarms status
                 getRemoteAlarmsTimer.Start();
 
+                //fir up timer to 'refresh' local alarms
+                refreshLocalAlarmsTimer.Start();
+
                 //ensure subscribed to all remote sources
                 foreach(var remoteSource in remoteSources)
                 {
@@ -338,6 +356,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     protected override void AddCommands()
     {
         AddCommand(AlarmManager.COMMAND_LIST_ALARMS, "List currently active alarms and their state");
+        AddCommand(AlarmManager.COMMAND_REFERSH_ALARM, "Requests local alarm <alarm> to update");
         AddCommand(AlarmManager.COMMAND_TEST_ALARM, "Test <alarm>");
         AddCommand(COMMAND_TEST_BUZZER, "Test the buzzer");
         AddCommand(COMMAND_TEST_PILOT, "Test the pilot light");
@@ -354,6 +373,24 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         {
             case AlarmManager.COMMAND_LIST_ALARMS:
                 AlarmManager.AddAlarmsListToMessage(response);
+                return true;
+
+            case AlarmManager.COMMAND_REFERSH_ALARM:
+                if(arguments.Count == 0)
+                {
+                    throw new ArgumentException("Please specify an alarm ID");
+                }
+                String id = arguments[0].ToString();
+                var alarm = AlarmManager.GetAlarm(id, true);
+                if(alarm.Source == LOCAL_SOURCE_NAME)
+                {
+                    var la = localAlarms.Get(id);
+                    la.RequestStatus();
+                }
+                else
+                {
+                    throw new NotImplementedException("Not implemented for remote alarms");
+                }
                 return true;
 
             case AlarmManager.COMMAND_TEST_ALARM:
@@ -414,7 +451,9 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         base.PopulateStatusResponse(response);
 
         response.AddValue("AMRunningStatus", AlarmManager.RunningStatus);
+        response.AddValue("AMAlarmsQueued", AlarmManager.AlarmsQueued);
     }
+
     protected override bool HandleCommandResponseReceived(string originalCommand, Message commandResponse, Message response)
     {
         if(originalCommand == AlarmManager.COMMAND_LIST_ALARMS)
