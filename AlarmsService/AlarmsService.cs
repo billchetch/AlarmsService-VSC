@@ -164,12 +164,10 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         refreshLocalAlarmsTimer.Interval = REFRESH_LOCAL_ALARMS_INTERVAL * 1000;
         refreshLocalAlarmsTimer.AutoReset = true;
         refreshLocalAlarmsTimer.Elapsed += (sender, args) =>{
-            if(ServiceConnected && localAlarms.IsReady)
+            if(ServiceConnected)
             {
-                foreach(var la in localAlarms)
-                {
-                    la.RequestStatus();
-                }
+                if(localAlarms.IsReady)localAlarms.RequestStatus();
+                if(controlSwitches.IsReady)controlSwitches.RequestStatus();
             }
         };
     }
