@@ -446,6 +446,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
 
     protected override void PopulateStatusResponse(Message response)
     {
+        StatusDetails["ArduinoBoard"] = board.StatusSummary;
         StatusDetails["AMRunningStatus"] = AlarmManager.RunningStatus;
         StatusDetails["AMAlarmsQueued"] = AlarmManager.AlarmsQueued;
         base.PopulateStatusResponse(response);
