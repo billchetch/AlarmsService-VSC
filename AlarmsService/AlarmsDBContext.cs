@@ -117,8 +117,8 @@ public class AlarmsDBContext : ChetchDbContext
     #region Constructors
     public AlarmsDBContext(string databaseName = DEFAULT_DATABASE_NAME, string dbConfigKey = "DBConfig") : base(databaseName, dbConfigKey)
     {
-        //assert utc time
-        AssertDateTimeUtc();
+        //Uncomment to assert utc time to prevent possibility of bad configuration
+        //AssertDateTimeUtc();
     }
     #endregion
 }
