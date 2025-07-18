@@ -16,21 +16,10 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     public const String COMMAND_TEST_MASTER = "test-master";
     public const String COMMAND_SILENCE_BUZZER = "silence";
     public const String COMMAND_UNSILENCE_BUZZER = "unsilence";
-
-    public const String ARDUINO_BOARD_NAME = "alarms-board"; //for identification purposes only
+    
     public const int DEFAULT_TEST_DURATION = 5; //in seconds
     public const int GET_REMOTE_ALARMS_INTERVAL = 30; //in seconds
     public const int REFRESH_LOCAL_ALARMS_INTERVAL = 30; //in seconds
-
-    public const byte MASTER_SWITCH_ID = 10;
-    public const byte BUZZER_ID = 11;
-    public const byte PILOT_ID = 12;
-    public const byte GENSET_ALARM_ID = 13;
-    public const String GENSET_ALARM_SID = "gs";
-    public const byte INVERTER_ALARM_ID = 14;
-    public const String INVERTER_ALARM_SID = "iv";
-    public const byte HIGHWATER_ALARM_ID = 15;
-    public const String HIGHWATER_ALARM_SID = "hw";
 
     public const String LOCAL_SOURCE_NAME = "local";
 
@@ -54,17 +43,8 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     #endregion
 
     #region Fields
-    ArduinoBoard board;
+    AlarmsBoard board = new AlarmsBoard();
 
-    //If this master is off then any alarm hardwired to the arduino board will go directly to the buzzer rather than via the board
-    //if the master is on then it will be disconnected from the buzzer. Without this the alarm could not be silenced as the silecning
-    //is done by software
-    SwitchDevice master = new SwitchDevice(MASTER_SWITCH_ID, "master");
-    Buzzer buzzer = new Buzzer(BUZZER_ID, "buzzer");
-    SwitchDevice pilot = new SwitchDevice(PILOT_ID, "pilot");
-
-    SwitchGroup localAlarms = new SwitchGroup("Local Alarms");
-    SwitchGroup controlSwitches = new SwitchGroup("Control Switches");
     List<AlarmsDBContext.Alarm> remoteAlarms = new List<AlarmsDBContext.Alarm>();
     Dictionary<String, AlarmsDBContext.Alarm> activeAlarms = new Dictionary<String, AlarmsDBContext.Alarm>();
     List<String> remoteSources = new List<String>();
@@ -80,30 +60,28 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     {
         ChetchDbContext.Config = Config;
 
-        //add local alarms to an array for convenience
-        localAlarms.Add(new SwitchDevice(GENSET_ALARM_ID, GENSET_ALARM_SID, "Gensets"));
-        localAlarms.Add(new SwitchDevice(INVERTER_ALARM_ID, INVERTER_ALARM_SID, "Inverter"));
-        localAlarms.Add(new SwitchDevice(HIGHWATER_ALARM_ID, HIGHWATER_ALARM_SID, "High Water"));
-        localAlarms.Switched += (sender, eargs) => {
-                if(eargs.Switch == null)return;
-                Console.WriteLine("Local Alarm {0} Switched, PinState={1}", eargs.Switch.SID, eargs.PinState);
-                if(eargs.Switch.IsOn)
-                {
-                    AlarmManager.Raise(eargs.Switch.SID,
-                            AlarmManager.AlarmState.CRITICAL,
-                            "Local alarm raised"
-                        );
-                }
-                else //assume is off
-                {
-                    AlarmManager.Lower(eargs.Switch.SID,
-                            "Local alarm lowered"
-                        );
-                }
-            };
-        localAlarms.Ready += (sender, ready) => {
+        board.LocalAlarms.Switched += (sender, eargs) =>
+        {
+            if (eargs.Switch == null) return;
+            Console.WriteLine("Local Alarm {0} Switched, PinState={1}", eargs.Switch.SID, eargs.PinState);
+            if (eargs.Switch.IsOn)
+            {
+                AlarmManager.Raise(eargs.Switch.SID,
+                        AlarmManager.AlarmState.CRITICAL,
+                        "Local alarm raised"
+                    );
+            }
+            else //assume is off
+            {
+                AlarmManager.Lower(eargs.Switch.SID,
+                        "Local alarm lowered"
+                    );
+            }
+        };
+        board.LocalAlarms.Ready += (sender, ready) =>
+        {
             Console.WriteLine("Local alarms ready: {0}", ready);
-            if(ready)
+            if (ready)
             {
                 AlarmManager.Connect(LOCAL_SOURCE_NAME);
             }
@@ -111,6 +89,23 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             {
                 AlarmManager.Disconnect(LOCAL_SOURCE_NAME);
                 AlarmManager.Flush();
+            }
+        };
+        board.ControlSwitches.Switched += (sender, eargs)=>{
+            if(ServiceConnected && sender != null)
+            {
+                var message = CreateMessageForDevice(eargs.Switch, MessageType.DATA);
+                message.AddValue("On", eargs.Switch.IsOn);
+                Broadcast(message);
+            }
+        };
+        board.ControlSwitches.Ready += (sender, ready) => {
+            Console.WriteLine("Control switches ready: {0}", ready);
+            foreach(SwitchDevice sw in board.ControlSwitches)
+            {
+                var message = CreateMessageForDevice(sw, MessageType.DATA);
+                message.AddValue("On", ready ? sw.IsOn : false);
+                Broadcast(message);
             }
         };
 
@@ -123,28 +118,6 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             //keep a record of this from the db for convenience
             activeAlarms = context.Alarms.Where(x => x.Active).ToDictionary(x => x.SID, x => x);
         }
-
-        //add indicator and control stuff
-        controlSwitches.Add(pilot);
-        controlSwitches.Add(buzzer);
-        controlSwitches.Add(master);
-        controlSwitches.Switched += (sender, eargs)=>{
-            if(ServiceConnected && sender != null)
-            {
-                var message = CreateMessageForDevice(eargs.Switch, MessageType.DATA);
-                message.AddValue("On", eargs.Switch.IsOn);
-                Broadcast(message);
-            }
-        };
-        controlSwitches.Ready += (sender, ready) => {
-            Console.WriteLine("Control switches ready: {0}", ready);
-            foreach(SwitchDevice sw in controlSwitches)
-            {
-                var message = CreateMessageForDevice(sw, MessageType.DATA);
-                message.AddValue("On", ready ? sw.IsOn : false);
-                Broadcast(message);
-            }
-        };
 
         //Set up timer for getting remote alarms
         getRemoteAlarmsTimer.Interval = GET_REMOTE_ALARMS_INTERVAL * 1000;
@@ -166,8 +139,8 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         refreshLocalAlarmsTimer.Elapsed += (sender, args) =>{
             if(ServiceConnected)
             {
-                if(localAlarms.IsReady)localAlarms.RequestStatus();
-                if(controlSwitches.IsReady)controlSwitches.RequestStatus();
+                if(board.LocalAlarms.IsReady)board.LocalAlarms.RequestStatus();
+                if(board.ControlSwitches.IsReady)board.ControlSwitches.RequestStatus();
             }
         };
     }
@@ -177,7 +150,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     public void RegisterAlarms()
     {
         //Register local alarms
-        foreach(var la in localAlarms)
+        foreach(var la in board.LocalAlarms)
         {
             var alm = AlarmManager.RegisterAlarm(this, la.SID, la.Name);
             if(activeAlarms.ContainsKey(la.SID))
@@ -213,22 +186,20 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             {
                 if(alarm.IsRaised)
                 {
-                    master.TurnOn();
-                    pilot.TurnOn();
+                    board.Master.TurnOn();
+                    board.Pilot.TurnOn();
 
                     //here we determine teh conditions under which we turn the buzzer on...
                     if(alarm.State == AlarmManager.AlarmState.CRITICAL)
                     {
-                        buzzer.TurnOn();
+                        board.Buzzer.TurnOn();
                     }
                 }
                 
                 //if all alarms are now off then turn everything off
                 if(!AlarmManager.IsAlarmRaised)
                 {
-                    master.TurnOff();
-                    pilot.TurnOff();
-                    buzzer.TurnOff();
+                    board.ControlSwitches.TurnOff();
                 }
             }
             catch (Exception e)
@@ -281,17 +252,12 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
         AlarmManager.AddRaiser(this);
 
         //Fire up the alarm manager
-        AlarmManager.Run(() => board != null && board.IsReady && controlSwitches.IsReady, stoppingToken);
+        AlarmManager.Run(() => board != null && board.IsReady && board.ControlSwitches.IsReady, stoppingToken);
         Logger.LogInformation("Alarm Manager set up and running...");
 
-        //Create an arduino board and add devices
-        board = new ArduinoBoard(ARDUINO_BOARD_NAME);
-        board.AddDevices(controlSwitches);
-        board.AddDevices(localAlarms);
-        
         //Now add the board to the service (this takes care of connecting it etc)
         AddBoard(board);
-        Logger.LogInformation("Arduino board set up and added to the service...");
+        Logger.LogInformation("Arduino board added to the service...");
 
         //configure the test timer stuff ... no auto reset as it starts on start test and fires on end test
         testTimer.AutoReset = false;
@@ -336,16 +302,6 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             endTest();
         }
 
-        try
-        {
-            controlSwitches.TurnOff();
-        }
-        catch (Exception e)
-        {
-            Logger.LogError(e, e.Message);
-        }
-        
-
         return base.StopAsync(cancellationToken);
     }
     #endregion
@@ -382,7 +338,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 var alarm = AlarmManager.GetAlarm(id, true);
                 if(alarm.Source == LOCAL_SOURCE_NAME)
                 {
-                    var la = localAlarms.Get(id);
+                    var la = board.LocalAlarms.Get(id);
                     la.RequestStatus();
                 }
                 else
@@ -432,11 +388,11 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                     throw new ArgumentException("Please specify a silence duration");
                 }
                 int silenceDuration = System.Convert.ToInt16(arguments[0].ToString());
-                buzzer.Silence(silenceDuration);
+                board.Buzzer.Silence(silenceDuration);
                 return true;
 
             case COMMAND_UNSILENCE_BUZZER:
-                buzzer.Unsilence();
+                board.Buzzer.Unsilence();
                 return true;
 
             default:
@@ -552,15 +508,15 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 break;
 
             case Test.BUZZER:
-                buzzer.TurnOn();
+                board.Buzzer.TurnOn();
                 break;
 
             case Test.PILOT:
-                pilot.TurnOn();
+                board.Pilot.TurnOn();
                 break;
 
             case Test.MASTER:
-                master.TurnOn();
+                board.Master.TurnOn();
                 break;
 
         }
@@ -591,15 +547,15 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                 break;
 
             case Test.BUZZER:
-                buzzer.TurnOff();
+                board.Buzzer.TurnOff();
                 break;
 
             case Test.PILOT:
-                pilot.TurnOff();
+                board.Pilot.TurnOff();
                 break;
 
             case Test.MASTER:
-                master.TurnOff();
+                board.Master.TurnOff();
                 break;
         }
 
