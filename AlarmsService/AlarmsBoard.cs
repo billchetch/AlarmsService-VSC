@@ -15,28 +15,39 @@ public class AlarmsBoard : ArduinoBoard
     #endregion
 
     #region Properties
-    public SwitchGroup LocalAlarms { get; } = new SwitchGroup("Local Alarms");
-    public SwitchGroup ControlSwitches { get; } = new SwitchGroup("Control Switches");
+    public SwitchGroup LocalAlarms { get; }
+    public SwitchGroup ControlSwitches { get; }
+
+    public PassiveSwitch GensetAlarm { get; } = new PassiveSwitch(GENSET_ALARM_SID, "Gensets");
+    public PassiveSwitch InverterAlarm { get; } = new PassiveSwitch(INVERTER_ALARM_SID, "Inverter");
+    public PassiveSwitch HighwaterAlarm { get; } = new PassiveSwitch(HIGHWATER_ALARM_SID, "High Water");
+
     //If this master is off then any alarm hardwired to the arduino board will go directly to the buzzer rather than via the board
     //if the master is on then it will be disconnected from the buzzer. Without this the alarm could not be silenced as the silecning
     //is done by software
-    public SwitchDevice Master { get; } = new SwitchDevice("master");
+    public ActiveSwitch Master { get; } = new ActiveSwitch("master");
     public Buzzer Buzzer { get; } = new Buzzer("buzzer");
-    public SwitchDevice Pilot { get; } = new SwitchDevice("pilot");
+    public ActiveSwitch Pilot { get; } = new ActiveSwitch("pilot");
     #endregion
 
     public AlarmsBoard(String sid = DEFAULT_BOARD_NAME) : base(sid)
     {
         //add indicator and control stuff
-        ControlSwitches.Add(Master);
-        ControlSwitches.Add(Buzzer);
-        ControlSwitches.Add(Pilot);
-
+        ControlSwitches = new SwitchGroup("Control Switches")
+        {
+            Master,
+            Buzzer,
+            Pilot
+        };
+        
         //add local alarms to an array for convenience
-        LocalAlarms.Add(new SwitchDevice(GENSET_ALARM_SID, "Gensets"));
-        LocalAlarms.Add(new SwitchDevice(INVERTER_ALARM_SID, "Inverter"));
-        LocalAlarms.Add(new SwitchDevice(HIGHWATER_ALARM_SID, "High Water"));
-
+        LocalAlarms = new SwitchGroup("Local Alarms")
+        {
+            GensetAlarm,
+            InverterAlarm,
+            HighwaterAlarm
+        };
+        
         AddDevices(ControlSwitches);
         AddDevices(LocalAlarms);
     }
