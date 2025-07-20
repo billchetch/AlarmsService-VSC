@@ -1,6 +1,7 @@
 using System;
 using Chetch.Arduino;
 using Chetch.Messaging;
+using Microsoft.EntityFrameworkCore.ChangeTracking.Internal;
 
 namespace Chetch.AlarmsService;
 
@@ -22,8 +23,19 @@ public class AlarmsVirtualBoard : ArduinoVirtualBoard
         regime.AddMessage(board.InverterAlarm, MessageType.DATA, "PinState", 0);
         regime.AddDelay(1000);
         regime.AddMessage(board.HighwaterAlarm, MessageType.DATA, "PinState", 0);
-
         AddRegime(regime);
+
+        foreach (var la in board.LocalAlarms)
+        {
+            regime = new ArduinoVirtualBoard.Regime(la.SID + "-alarm");
+            regime.RepeatCount = 3;
+            regime.AddMessage(la, MessageType.DATA, "PinState", 1);
+            regime.AddDelay(1000);
+            regime.AddMessage(la, MessageType.DATA, "PinState", 0);
+            regime.AddDelay(1000);
+            AddRegime(regime);
+        }
+
     }
 
     public AlarmsVirtualBoard() : this(new AlarmsBoard()){}
