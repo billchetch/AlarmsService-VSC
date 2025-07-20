@@ -54,7 +54,11 @@ public class AlarmsBoard : ArduinoBoard
 
     public override void End()
     {
-        ControlSwitches.TurnOff();
+        try
+        {
+            ControlSwitches.TurnOff();
+        }
+        catch (Exception){}
         base.End();
     }
 }

@@ -14,7 +14,9 @@
 
   <ItemGroup>
     <ProjectReference Include="../../../Libraries/Alarms/Alarms/Alarms.csproj" />
+    <ProjectReference Include="../../../Libraries/Arduino/Arduino.Tests/Arduino.Tests.csproj" />
     <ProjectReference Include="../../../Libraries/ChetchXMPP/ChetchXMPP/ChetchXMPP.csproj" />
+    <ProjectReference Include="../AlarmsService/AlarmsService.csproj" />
   </ItemGroup>
 
   <ItemGroup>
