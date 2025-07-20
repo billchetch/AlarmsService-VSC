@@ -101,8 +101,6 @@ public sealed class AlarmsBoardTest
                 Thread.Sleep(1000);
             }
 
-            ArduinoVirtualBoard.BeginRegime(board, "local-alarms");
-            
             while (!regimeEnded)
             {
                 Thread.Sleep(1000);
