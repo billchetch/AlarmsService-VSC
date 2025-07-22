@@ -44,6 +44,9 @@ public class AlarmsVirtualBoard : ArduinoVirtualBoard
         regime.AddDelay(2000);
         AddRegime(regime);
 
+        //other stuff
+        board.RequestStatusTimerInterval = 5;
+
     }
 
     public AlarmsVirtualBoard() : this(new AlarmsBoard()){}
