@@ -39,7 +39,7 @@ public class AlarmsBoard : ArduinoBoard
             Buzzer,
             Pilot
         };
-        
+
         //add local alarms to an array for convenience
         LocalAlarms = new SwitchGroup("Local Alarms")
         {
@@ -47,7 +47,7 @@ public class AlarmsBoard : ArduinoBoard
             InverterAlarm,
             HighwaterAlarm
         };
-        
+
         AddDevices(ControlSwitches);
         AddDevices(LocalAlarms);
     }

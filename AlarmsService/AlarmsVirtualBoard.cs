@@ -43,10 +43,6 @@ public class AlarmsVirtualBoard : ArduinoVirtualBoard
         regime.AddMessage(board.GensetAlarm, MessageType.DATA, "PinState", 0);
         regime.AddDelay(2000);
         AddRegime(regime);
-
-        //other stuff
-        board.RequestStatusTimerInterval = 5;
-
     }
 
     public AlarmsVirtualBoard() : this(new AlarmsBoard()){}
