@@ -19,8 +19,7 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     
     public const int DEFAULT_TEST_DURATION = 5; //in seconds
     public const int GET_REMOTE_ALARMS_INTERVAL = 30; //in seconds
-    public const int REFRESH_LOCAL_ALARMS_INTERVAL = 30; //in seconds
-
+    
     public const String LOCAL_SOURCE_NAME = "local";
 
     #endregion
@@ -52,7 +51,6 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
     Test currentTest = Test.NOT_TESTING;
     System.Timers.Timer testTimer = new System.Timers.Timer();
     System.Timers.Timer getRemoteAlarmsTimer = new System.Timers.Timer();
-    System.Timers.Timer refreshLocalAlarmsTimer = new System.Timers.Timer();
     #endregion
 
     #region Constructors
@@ -130,17 +128,6 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
                     var msg = AlarmManager.CreateListAlarmsMessage(remoteSource);
                     SendMessage(msg);
                 }
-            }
-        };
-
-        //Set up timer for requesting local alarms status
-        refreshLocalAlarmsTimer.Interval = REFRESH_LOCAL_ALARMS_INTERVAL * 1000;
-        refreshLocalAlarmsTimer.AutoReset = true;
-        refreshLocalAlarmsTimer.Elapsed += (sender, args) =>{
-            if(ServiceConnected)
-            {
-                if(board.LocalAlarms.IsReady)board.LocalAlarms.RequestStatus();
-                if(board.ControlSwitches.IsReady)board.ControlSwitches.RequestStatus();
             }
         };
     }
@@ -271,9 +258,6 @@ public class AlarmsService : ArduinoService<AlarmsService>, AlarmManager.IAlarmR
             {
                 //fire up the timer to check remote alarms status
                 getRemoteAlarmsTimer.Start();
-
-                //fir up timer to 'refresh' local alarms
-                refreshLocalAlarmsTimer.Start();
 
                 //ensure subscribed to all remote sources
                 foreach(var remoteSource in remoteSources)

@@ -12,6 +12,7 @@ public class AlarmsBoard : ArduinoBoard
     public const String GENSET_ALARM_SID = "gs";
     public const String INVERTER_ALARM_SID = "iv";
     public const String HIGHWATER_ALARM_SID = "hw";
+    public const int REFRESH_ALARMS_AND_CONTROL_SWITCHES_INTERVAL = 5; //in seconds
     #endregion
 
     #region Properties
@@ -30,6 +31,11 @@ public class AlarmsBoard : ArduinoBoard
     public ActiveSwitch Pilot { get; } = new ActiveSwitch("pilot");
     #endregion
 
+    #region Fields
+    System.Timers.Timer refreshTimer = new System.Timers.Timer();
+    #endregion
+
+    #region Constructors
     public AlarmsBoard(String sid = DEFAULT_BOARD_NAME) : base(sid)
     {
         //add indicator and control stuff
@@ -50,6 +56,41 @@ public class AlarmsBoard : ArduinoBoard
 
         AddDevices(ControlSwitches);
         AddDevices(LocalAlarms);
+
+        //Set up timer for requesting local alarms status
+        refreshTimer.Interval = REFRESH_ALARMS_AND_CONTROL_SWITCHES_INTERVAL * 1000;
+        refreshTimer.AutoReset = true;
+        refreshTimer.Elapsed += (sender, args) =>
+        {
+            if (IsReady)
+            {
+                if (LocalAlarms.IsReady)
+                {
+                    LocalAlarms.RequestStatus();
+                }
+                if (ControlSwitches.IsReady)
+                {
+                    ControlSwitches.RequestStatus();
+                }
+            }
+        };
+    }
+    #endregion
+
+    #region Lifecycle
+    protected override void OnReady()
+    {
+        base.OnReady();
+        if (IsReady)
+        {
+            //fir up timer to 'refresh' local alarms
+            refreshTimer.Start();
+        }
+        else
+        {
+            //stop the local alarms timer
+            refreshTimer.Start();
+        }
     }
 
     public override void End()
@@ -58,7 +99,8 @@ public class AlarmsBoard : ArduinoBoard
         {
             ControlSwitches.TurnOff();
         }
-        catch (Exception){}
+        catch (Exception) { }
         base.End();
     }
+    #endregion
 }
