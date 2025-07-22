@@ -83,13 +83,13 @@ public class AlarmsBoard : ArduinoBoard
         base.OnReady();
         if (IsReady)
         {
-            //fir up timer to 'refresh' local alarms
+            //fire up timer to 'refresh' local alarms and constrol switches
             refreshTimer.Start();
         }
         else
         {
-            //stop the local alarms timer
-            refreshTimer.Start();
+            //stop said timer
+            refreshTimer.Stop();
         }
     }
 
