@@ -12,7 +12,7 @@ public class AlarmsBoard : ArduinoBoard
     public const String GENSET_ALARM_SID = "gs";
     public const String INVERTER_ALARM_SID = "iv";
     public const String HIGHWATER_ALARM_SID = "hw";
-    public const int REFRESH_ALARMS_AND_CONTROL_SWITCHES_INTERVAL = 5; //in seconds
+    public const int REFRESH_ALARMS_AND_CONTROL_SWITCHES_INTERVAL = 30; //in seconds
     #endregion
 
     #region Properties
