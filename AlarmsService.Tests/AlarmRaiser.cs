@@ -41,9 +41,9 @@ public sealed class AlarmRaiser : AlarmTestBase, AlarmManager.IAlarmRaiser
     {
         await ConnectClient();
 
-        NotifyServiceConnected();
+        NotifyServiceEvent(Chetch.AlarmsService.AlarmsService.ServiceEvent.Connected);
         Thread.Sleep(3000);
-        
+
         var rand = new Random();
         for (int i = 0; i < 2; i++)
         {
@@ -55,7 +55,7 @@ public sealed class AlarmRaiser : AlarmTestBase, AlarmManager.IAlarmRaiser
         }
 
         //NotifyTestEnd(AlarmClient.USERNAME);
-        NotifyServiceDisconnecting();
+        NotifyServiceEvent(Chetch.AlarmsService.AlarmsService.ServiceEvent.Disconnecting);
         Thread.Sleep(1000);
         await DisconnectClient();
         Thread.Sleep(1000);

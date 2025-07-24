@@ -55,14 +55,10 @@ public class AlarmTestBase
         SendMessage(msg);
     }
 
-    protected void NotifyServiceConnected()
+    protected void NotifyServiceEvent(Chetch.AlarmsService.AlarmsService.ServiceEvent serviceEvent)
     {
-        var msg = ChetchXMPPMessaging.CreateNotificationMessage(10001);
-        SendMessage(msg);
-    }
-    protected void NotifyServiceDisconnecting()
-    {
-        var msg = ChetchXMPPMessaging.CreateNotificationMessage(10002);
+        var msg = ChetchXMPPMessaging.CreateNotificationMessage((int)serviceEvent);
+        msg.AddValue("ServiceEvent", serviceEvent);
         SendMessage(msg);
     }
 }
