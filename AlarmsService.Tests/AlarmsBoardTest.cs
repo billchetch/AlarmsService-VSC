@@ -118,4 +118,54 @@ public sealed class AlarmsBoardTest
             Console.WriteLine("Board {0} has ended", board.SID);
         }
     }
+
+    [TestMethod]
+    public void ControlSwitchesTest()
+    {
+        var board = CreateBoard();
+        try
+        {
+            board.MessageReceived += (sender, message) =>
+            {
+                Console.WriteLine("<---- Message {0} received from {1}", message.Type, message.Sender);
+            };
+
+            Console.WriteLine("Beginning board {0}...", board.SID);
+            board.Begin();
+            Console.WriteLine("Board {0} has begun!", board.SID);
+
+            while (!board.IsReady)
+            {
+                Thread.Sleep(1000);
+            }
+
+            for (int i = 0; i < 2; i++)
+            {
+                board.Master.TurnOn();
+                Thread.Sleep(1000);
+                board.Buzzer.TurnOn();
+                Thread.Sleep(1000);
+                board.Pilot.TurnOn();
+                Thread.Sleep(1000);
+
+                board.Master.TurnOff();
+                Thread.Sleep(1000);
+                board.Buzzer.TurnOff();
+                Thread.Sleep(1000);
+                board.Pilot.TurnOff();
+                Thread.Sleep(1000);
+            }
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e.Message);
+        }
+        finally
+        {
+            Console.WriteLine("Ending test for board {0}", board.SID);
+            board.End();
+            Thread.Sleep(500);
+            Console.WriteLine("Board {0} has ended", board.SID);
+        }
+    }
 }
