@@ -2,6 +2,7 @@
 using System.Threading.Tasks;
 using Chetch.ChetchXMPP;
 using Chetch.Alarms;
+using Chetch.Messaging;
 
 namespace AlarmsService.Tests;
 
@@ -34,6 +35,31 @@ public sealed class AlarmRaiser : AlarmTestBase, AlarmManager.IAlarmRaiser
     public void RegisterAlarms()
     {
         AlarmManager.RegisterAlarm(this, "test", "Test alarm kak Test");
+    }
+
+    protected override bool HandleCommandReceived(string command, Message message, Message response)
+    {
+        switch (command)
+        {
+            case AlarmManager.COMMAND_LIST_ALARMS:
+                AlarmManager.AddAlarmsListToMessage(response);
+                return true;
+        }
+
+        return false;
+    }
+
+    [TestMethod]
+    public async Task ConnectAndDisconnectTestAlarm()
+    {
+        await ConnectClient();
+
+        NotifyServiceEvent(Chetch.AlarmsService.AlarmsService.ServiceEvent.Connected);
+        Thread.Sleep(5000);
+        NotifyServiceEvent(Chetch.AlarmsService.AlarmsService.ServiceEvent.Disconnecting);
+        Thread.Sleep(1000);
+        await DisconnectClient();
+        Thread.Sleep(1000);
     }
 
     [TestMethod]
