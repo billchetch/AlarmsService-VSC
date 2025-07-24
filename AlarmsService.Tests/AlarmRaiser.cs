@@ -35,6 +35,7 @@ public sealed class AlarmRaiser : AlarmTestBase, AlarmManager.IAlarmRaiser
     public void RegisterAlarms()
     {
         AlarmManager.RegisterAlarm(this, "test", "Test alarm kak Test");
+        AlarmManager.Connect(this);
     }
 
     protected override bool HandleCommandReceived(string command, Message message, Message response)
