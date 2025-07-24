@@ -40,9 +40,12 @@ public sealed class AlarmRaiser : AlarmTestBase, AlarmManager.IAlarmRaiser
     public async Task RaiseAndLowerTestAlarm()
     {
         await ConnectClient();
+
+        NotifyServiceConnected();
+        Thread.Sleep(3000);
         
         var rand = new Random();
-        for(int i = 0; i < 2; i++)
+        for (int i = 0; i < 2; i++)
         {
             var msg = String.Format("Test alarm raised {0}", i + 1);
             AlarmManager.Raise("test", AlarmManager.AlarmState.MODERATE, msg);
@@ -51,7 +54,10 @@ public sealed class AlarmRaiser : AlarmTestBase, AlarmManager.IAlarmRaiser
             await Task.Delay(rand.Next(1000, 2000));
         }
 
-        NotifyTestEnd(AlarmClient.USERNAME);
+        //NotifyTestEnd(AlarmClient.USERNAME);
+        NotifyServiceDisconnecting();
+        Thread.Sleep(1000);
         await DisconnectClient();
+        Thread.Sleep(1000);
     }
 }

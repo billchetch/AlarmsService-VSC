@@ -40,7 +40,7 @@ public class AlarmTestBase
 
     protected Task SendMessage(Message msg)
     {
-        if(String.IsNullOrEmpty(msg.Target))
+        if (String.IsNullOrEmpty(msg.Target))
         {
             msg.Target = ALARMS_SERVICE;
         }
@@ -52,6 +52,17 @@ public class AlarmTestBase
     {
         var msg = ChetchXMPPMessaging.CreateNotificationMessage(1);
         msg.Target = targetTonotify;
+        SendMessage(msg);
+    }
+
+    protected void NotifyServiceConnected()
+    {
+        var msg = ChetchXMPPMessaging.CreateNotificationMessage(10001);
+        SendMessage(msg);
+    }
+    protected void NotifyServiceDisconnecting()
+    {
+        var msg = ChetchXMPPMessaging.CreateNotificationMessage(10002);
         SendMessage(msg);
     }
 }
